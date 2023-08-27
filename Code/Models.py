@@ -74,10 +74,6 @@ class App():
         run_STT(None)-> str
 
         run_TTT(str) -> str
-
-        run_TTS(str) -> None
-
-        run(None) -> None
     ----------
     """
     def __init__(self, 
@@ -106,9 +102,7 @@ class App():
         ----------
         """
         text = self.stt_model.run()
-        print("You: " + text)
         return text
-
     def run_TTT(self, text:str):
         """ Call the run(str) function of the ttt_model and print the output.
         ----------
@@ -149,6 +143,16 @@ class App():
                 live = False
             else:
                 self.run_TTS(self.run_TTT(inp))
+
+
+
+class Test():
+    def __init__(self, name, id:int):
+        self.name = name
+        self.id = id
+    
+    def get_id(self):
+        return self.id
 
 
 class PythonDummySTTModel(STTStrategy):
@@ -224,8 +228,10 @@ class WhisperModel(STTStrategy):
         """
         super().__init__()
         self.r = sr.Recognizer()
-#         self.p = pipeline("automatic-speech-recognition", model="openai/whisper-tiny")
-        self.p = pipeline("automatic-speech-recognition", model="openai/whisper-base")
+        self.p = pipeline("automatic-speech-recognition", model="openai/whisper-large-v2")
+        # self.p = pipeline("automatic-speech-recognition", model="openai/whisper-large")
+        # self.p = pipeline("automatic-speech-recognition", model="openai/whisper-medium")
+        # self.p = pipeline("automatic-speech-recognition", model="openai/whisper-tiny")
 
     def run(self)-> str:
         """
@@ -239,7 +245,7 @@ class WhisperModel(STTStrategy):
         with sr.Microphone() as source:
             self.r.adjust_for_ambient_noise(source)
             audio = self.r.listen(source)
-            text=self.p(audio.get_flac_data())["text"]
+            text=self.p(audio.get_flac_data(), max_new_tokens=500)["text"]
         return text
               
 
@@ -414,6 +420,25 @@ class FastChatModel(TTTStrategy):
 
         del past_key_values
 
+    def generate_start(self, inp):
+        self.conv.append_message(self.conv.roles[0], inp)
+        self.conv.append_message(self.conv.roles[1], None)
+        prompt = self.conv.get_prompt()
+
+        params = {
+        "model": self.args.model_name,
+        "prompt": prompt,
+        "temperature": self.args.temperature,
+        "max_new_tokens": self.args.max_new_tokens,
+        "stop": self.conv.sep if self.conv.sep_style == SeparatorStyle.ADD_COLON_SINGLE else self.conv.sep2,
+        }
+
+        print(f"{self.conv.roles[1]}: ", end="", flush=True)
+        pre = 0
+
+        return self.generate_stream(self.tokenizer, self.model, params, self.args.device)
+
+
     def run(self, inp):
         self.conv.append_message(self.conv.roles[0], inp)
         self.conv.append_message(self.conv.roles[1], None)
@@ -443,6 +468,12 @@ class FastChatModel(TTTStrategy):
     
     def clear_history(self):
         self.conv.messages.clear()
+    
+    def clear_cache(self):
+        del self.model
+        self.model = None
+        torch.cuda.empty_cache()
+    
 
 
 class GTTSAPI(TTSStrategy):
@@ -454,7 +485,7 @@ class GTTSAPI(TTSStrategy):
     Functions:
     ----------
     """
-    def run(self, text:str, filepath:str = "../Files/text_to_speech.wav"):
+    def run(self, text:str, lang:str = "en", slow=False, filepath:str = "../Files/text_to_speech.wav"):
         """
         ----------
         Parameters:
@@ -463,9 +494,10 @@ class GTTSAPI(TTSStrategy):
         Return:
         ----------
         """
-        tts = gtts.gTTS(text)
+        tts = gtts.gTTS(text, lang=lang, slow=slow)
         tts.save(filepath)
-        playsound(filepath)
+        # playsound(filepath)
+        return filepath
 
 		
 
