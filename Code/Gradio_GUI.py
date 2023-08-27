@@ -136,7 +136,7 @@ class ChatBotGUI():
                 self.bot, chatbot, chatbot
             )
             
-            # txt_msg.then(lambda: gr.update(interactive=True), None, [txt], queue=False).then(start_speaker, [chatbot], [speaker], queue=False)
+            ## txt_msg.then(lambda: gr.update(interactive=True), None, [txt], queue=False).then(start_speaker, [chatbot], [speaker], queue=False)
 
             txt_msg.then(lambda: gr.update(interactive=True), None, [txt], queue=False).then(self.start_waveform, [chatbot], [speaker_video], queue=False)
             
