@@ -1,18 +1,16 @@
 import torch
-import numpy as np
 import speech_recognition as sr
-import os
-from langchain.llms import OpenAI
+# from langchain.llms import OpenAI
 import gtts
-from playsound import playsound
 from abc import ABC, abstractmethod
-from transformers import pipeline, Conversation, AutoTokenizer, AutoModelForCausalLM, LlamaTokenizer
+from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM, GPT2Tokenizer, GPT2LMHeadModel, Conversation, SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan
 import argparse
-import time
 from fastchat.conversation import conv_templates, SeparatorStyle
+from datasets import load_dataset
+import soundfile as sf
+from espnet2.bin.tts_inference import Text2Speech
 
-
-OPENAI_API_KEY="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"
+# OPENAI_API_KEY="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"
 
 
 
@@ -23,7 +21,7 @@ class STTStrategy(ABC):
     """Interface for Speech-to-Text Models.
     ----------
     Functions:
-        run():  Convert speech input to text.
+        run:  Convert speech input to text.
                 parameters: None
                 Return: str
     ----------
@@ -36,7 +34,7 @@ class TTTStrategy(ABC):
     """Interface for Text-to-Text Models.
     ----------
     Functions:
-        run():  Reply to the input text with text.
+        run:  Reply to the input text with text.
                 parameters: text:str, ex: Statement, question, etc.
                 Return: str
     ----------
@@ -50,7 +48,7 @@ class TTSStrategy(ABC):
     """Interface for Text-to-Speech Models.
     ----------
     Functions:
-        run():  Convert text input to audio object, save it into a .mp3 file then play it.
+        run:  Convert text input to audio object, save it into a .mp3 file then play it.
                 parameters: text:str
                 Return: None.
     ----------
@@ -60,9 +58,9 @@ class TTSStrategy(ABC):
         pass
 
 class App():
-    """Our Speech-to-Speech application class.
+    """Our Speech-to-Speech application class with no GUI.
     ----------
-    Parameters:
+    Attributes:
         stt_model:STTStrategy 'Speech-to-Text Model'.
 
         ttt_model:TTTStrategy 'Text-to-Text Model'.
@@ -71,9 +69,9 @@ class App():
 
     ----------
     Functions:
-        run_STT(None)-> str
+        run_STT: call the run() function of the stt_model and print the output.
 
-        run_TTT(str) -> str
+        run_TTT: call the run(str) function of the ttt_model and return the output.
     ----------
     """
     def __init__(self, 
@@ -83,9 +81,14 @@ class App():
         """
         ----------
         Parameters:
+            stt_model:STTStrategy 'Speech-to-Text Model'.
+
+            ttt_model:TTTStrategy 'Text-to-Text Model'.
+
+            tts_model:TTSStrategy 'Text-to-Speech Model'.
 
         ----------
-        Return:
+        Return: None
         ----------
         """
         self.stt_model=stt_model
@@ -104,7 +107,7 @@ class App():
         text = self.stt_model.run()
         return text
     def run_TTT(self, text:str):
-        """ Call the run(str) function of the ttt_model and print the output.
+        """ Call the run(str) function of the ttt_model and return the output.
         ----------
         Parameters:
             text:str.
@@ -146,40 +149,35 @@ class App():
 
 
 
-class Test():
-    def __init__(self, name, id:int):
-        self.name = name
-        self.id = id
-    
-    def get_id(self):
-        return self.id
-
-
 class PythonDummySTTModel(STTStrategy):
-    """
+    """A speech to text strategy using google api for speech recognition. Subclass of STTStrategy.
     ----------
-    Parameters:
+    Attributes: 
+        r: Recognizer object from speech_recognition module.
 
     ----------
     Functions:
+        run_file: Read an audio file and convert its content to text.
+
+        run: Record a speech using microphone then convert and return it as text.
     ----------
     """
     def __init__(self):
         """
         ----------
-        Parameters:
+        Parameters: None
 
         ----------
-        Return:
+        Return: None
         ----------
         """
         super().__init__()
         self.r = sr.Recognizer()
 	
     def run_file(self, path):
-        """ Record a speech using the microphone and convert it to text.
+        """ Read an audio file and convert its content to text.
         ----------
-        Parameters: None
+        Parameters: path:str the directory of the audio file.
       
         ----------
         Return: 
@@ -192,13 +190,13 @@ class PythonDummySTTModel(STTStrategy):
         return text
 		
     def run(self):
-        """
+        """ Record a speech using the microphone then convert and return it as text.
         ----------
-        Parameters:
-
+        Parameters: None
+      
         ----------
-        Return:
-            text
+        Return: 
+            text:str, the converted text from the recorded speech
         ----------
         """
         with sr.Microphone() as source:
@@ -207,39 +205,43 @@ class PythonDummySTTModel(STTStrategy):
             print("Recognizing...")
             text = self.r.recognize_google(audio_data, language="en-US", show_all=True)
         return text["alternative"][0]["transcript"]
+
         
 class WhisperModel(STTStrategy):
-    """
+    """A speech to text abstract strategy using Whisper model from HuggingFace hub. Subclass of STTStrategy.
     ----------
-    Parameters:
+    Attributes: 
+        r: Recognizer object from speech_recognition module.
+        
+        p: refers to pipeline from transformers module.
 
     ----------
     Functions:
+        run: record a speech using the microphone then convert and return it as text.
     ----------
     """    
     def __init__(self):
         """
         ----------
-        Parameters:
+        Parameters: None
 
         ----------
-        Return:
+        Return: None
         ----------
         """
         super().__init__()
         self.r = sr.Recognizer()
-        self.p = pipeline("automatic-speech-recognition", model="openai/whisper-large-v2")
-        # self.p = pipeline("automatic-speech-recognition", model="openai/whisper-large")
-        # self.p = pipeline("automatic-speech-recognition", model="openai/whisper-medium")
-        # self.p = pipeline("automatic-speech-recognition", model="openai/whisper-tiny")
+        self.p = None
+
 
     def run(self)-> str:
-        """
+        """ Record a speech using the microphone then convert and return it as text.
         ----------
-        Parameters:
-
+        Parameters: None
+      
         ----------
-        Return:
+        Return: 
+            text:str, the converted text from the recorded speech
         ----------
         """
         with sr.Microphone() as source:
@@ -247,63 +249,291 @@ class WhisperModel(STTStrategy):
             audio = self.r.listen(source)
             text=self.p(audio.get_flac_data(), max_new_tokens=500)["text"]
         return text
-              
+    
+    def run_gradio(self, audio):
+        """ Convert audio data recorded with a gradio microphone to text.
+        ----------
+        Parameters:
+            audio: byte string representing the contents of a FLAC file containing the audio represented by the AudioData instance.
+        ----------
+        Return: 
+           The converted text from the recorded speech
+        ----------
 
+        """
+        return self.p(audio, max_new_tokens=500)["text"]
 
-
-
-
-class OpenAIModel(TTTStrategy):
-    """
+class WhisperTiny(WhisperModel):
+    """A speech to text strategy using Whisper model from HuggingFace hub. Subclass of WhisperModel.
     ----------
-    Parameters:
+    Attributes: 
+        p: pipeline from transformers module with automatic-speech-recognition task and whisper-tiny model.
 
     ----------
     Functions:
+        run: record a speech using the microphone then convert and return it as text.
     ----------
-    """
+    """    
     def __init__(self):
         """
         ----------
-        Parameters:
+        Parameters: None
 
         ----------
-        Return:
+        Return: None
         ----------
         """
         super().__init__()
-        self.llm = OpenAI(openai_api_key = OPENAI_API_KEY)
-	
-    def run(self, text:str)->str:
+        self.p = pipeline("automatic-speech-recognition", model="openai/whisper-tiny")
+
+    def run(self)-> str:
+        """ Record a speech using the microphone then convert and return it as text.
+        ----------
+        Parameters: None
+      
+        ----------
+        Return: 
+            text:str, the converted text from the recorded speech
+        ----------
         """
+        return super().run()
+    
+    def run_gradio(self, audio):
+        """ Convert audio data recorded with a gradio microphone to text.
         ----------
         Parameters:
+            audio: byte string representing the contents of a FLAC file containing the audio represented by the AudioData instance.
+        ----------
+        Return: 
+           The converted text from the recorded speech
+        ----------
 
-        ----------
-        Return:
-        ----------
         """
-        reply = self.llm.predict(text).strip()
-        print("AI : " + reply)
-        return reply
+        return super().run_gradio(audio)
 
-    
-class FastChatModel(TTTStrategy):
-    """
+
+class WhisperMedium(WhisperModel):
+    """A speech to text strategy using Whisper model from HuggingFace hub. Subclass of WhisperModel.
     ----------
-    Parameters:
+    Attributes: 
+        p: pipeline from transformers module with automatic-speech-recognition task and whisper-medium model.
 
     ----------
     Functions:
+        run: record a speech using the microphone then convert and return it as text.
+    ----------
+    """    
+    def __init__(self):
+        """
+        ----------
+        Parameters: None
+
+        ----------
+        Return: None
+        ----------
+        """
+        super().__init__()
+        self.p = pipeline("automatic-speech-recognition", model="openai/whisper-medium")
+
+    def run(self)-> str:
+        """ Record a speech using the microphone then convert and return it as text.
+        ----------
+        Parameters: None
+      
+        ----------
+        Return: 
+            text:str, the converted text from the recorded speech
+        ----------
+        """
+        return super().run()
+    
+    def run_gradio(self, audio):
+        """ Convert audio data recorded with a gradio microphone to text.
+        ----------
+        Parameters:
+            audio: byte string representing the contents of a FLAC file containing the audio represented by the AudioData instance.
+        ----------
+        Return: 
+           The converted text from the recorded speech
+        ----------
+
+        """
+        return super().run_gradio(audio)
+    
+class WhisperLarge(WhisperModel):
+    """A speech to text strategy using Whisper model from HuggingFace hub. Subclass of WhisperModel.
+    ----------
+    Attributes: 
+        p: pipeline from transformers module with automatic-speech-recognition task and whisper-large model.
+
+    ----------
+    Functions:
+        run: record a speech using the microphone then convert and return it as text.
+    ----------
+    """    
+    def __init__(self):
+        """
+        ----------
+        Parameters: None
+
+        ----------
+        Return: None
+        ----------
+        """
+        super().__init__()    
+        self.p = pipeline("automatic-speech-recognition", model="openai/whisper-large")
+
+    def run(self)-> str:
+        """ Record a speech using the microphone then convert and return it as text.
+        ----------
+        Parameters: None
+      
+        ----------
+        Return: 
+            text:str, the converted text from the recorded speech
+        ----------
+        """
+        return super().run()
+
+    def run_gradio(self, audio):
+        """ Convert audio data recorded with a gradio microphone to text.
+        ----------
+        Parameters:
+            audio: byte string representing the contents of a FLAC file containing the audio represented by the AudioData instance.
+        ----------
+        Return: 
+           The converted text from the recorded speech
+        ----------
+
+        """
+        return super().run_gradio(audio)
+    
+class WhisperLargeV2(WhisperModel):
+    """A speech to text strategy using Whisper model from HuggingFace hub. Subclass of WhisperModel.
+    ----------
+    Attributes: 
+        p: pipeline from transformers module with automatic-speech-recognition task and whisper-large-v2 model.
+
+    ----------
+    Functions:
+        run: record a speech using the microphone then convert and return it as text.
+    ----------
+    """    
+    def __init__(self):
+        """
+        ----------
+        Parameters: None
+
+        ----------
+        Return: None
+        ----------
+        """
+        super().__init__()
+        self.p = pipeline("automatic-speech-recognition", model="openai/whisper-large-v2")
+
+    def run(self)-> str:
+        """ Record a speech using the microphone then convert and return it as text.
+        ----------
+        Parameters: None
+      
+        ----------
+        Return: 
+            text:str, the converted text from the recorded speech
+        ----------
+        """
+        return super().run()          
+
+    def run_gradio(self, audio):
+        """ Convert audio data recorded with a gradio microphone to text.
+        ----------
+        Parameters:
+            audio: byte string representing the contents of a FLAC file containing the audio represented by the AudioData instance.
+        ----------
+        Return: 
+           The converted text from the recorded speech
+        ----------
+
+        """
+        return super().run_gradio(audio)
+
+
+
+# class OpenAIModel(TTTStrategy):
+#     """ A text to text strategy using OpenAI api. Subclass of TTTStrategy
+#     ----------
+#     Attributes:
+#         llm: OpenAI model.
+
+#     ----------
+#     Functions:
+#         run: generate text using OpenAI based on the input text.
+#     ----------
+#     """
+#     def __init__(self):
+#         """
+#         ----------
+#         Parameters: None
+
+#         ----------
+#         Return: None
+#         ----------
+#         """
+#         super().__init__()
+#         self.llm = OpenAI(openai_api_key = OPENAI_API_KEY)
+	
+#     def run(self, text:str)->str:
+#         """Generate text using OpenAI based on the input text.
+#         ----------
+#         Parameters:
+#                 text:str, input text.
+#         ----------
+#         Return:
+#             reply:str, text generated by OpenAI.
+#         ----------
+#         """
+#         reply = self.llm.predict(text).strip()
+#         print("AI : " + reply)
+#         return reply
+
+    
+class FastChatModel(TTTStrategy):
+    """ A text to text strategy based on FastChat project using Vicuna model. Subclass of TTTStrategy
+    ----------
+    Attributes:
+        args:dict:
+            model_name: the name of the used vicuna model.
+            device:str, 'cpu', 'cuda', 'mps'
+            num_gpus:str, number of GPUs to be used by the model.
+            load_8bit:bool,  whether to use the 8bit compression for low memory.
+            conv_template:str, specify the template of the conversation.
+            temperature:float.
+            max_new_token:int, max amount of generated characters.
+            debug:bool.
+        
+        model: the model used to generate text.
+
+        tokenizer: the tokenizer used to encode inputs and decode outputs of the model.
+
+        conv: conversation template.
+
+    ----------
+    Functions:
+        load_model: load both the model and the tokenizer from transformers module corresponding to model_name.
+
+        generate_stream:
+
+        generate-start:
+
+        run:
+
     ----------
     """
     def __init__(self):
         """
         ----------
-        Parameters:
-
+        Parameters: None
         ----------
-        Return:
+        Return: None
         ----------
         """
         super().__init__()            
@@ -371,7 +601,7 @@ class FastChatModel(TTTStrategy):
 
         max_src_len = context_len - max_new_tokens - 8
         input_ids = input_ids[-max_src_len:]
-
+        outputs = []
         for i in range(max_new_tokens):
             if i == 0:
                 out = model(
@@ -418,7 +648,18 @@ class FastChatModel(TTTStrategy):
             if stopped:
                 break
 
+            # if i == max_new_tokens - 1 or stopped:
+            #     output = tokenizer.decode(output_ids, skip_special_tokens=True)
+            #     pos = output.rfind(stop_str, l_prompt)
+            #     if pos != -1:
+            #         output = output[:pos]
+            #         stopped = True
+            #     outputs.append(output)
+            # if stopped:
+            #     break
+
         del past_key_values
+        # return outputs
 
     def generate_start(self, inp):
         self.conv.append_message(self.conv.roles[0], inp)
@@ -435,15 +676,31 @@ class FastChatModel(TTTStrategy):
 
         print(f"{self.conv.roles[1]}: ", end="", flush=True)
         pre = 0
+        #new
+        outputs = self.generate_stream(self.tokenizer, self.model, params, self.args.device)
+        for output in outputs:
+            output = output[len(prompt) + 1:].strip()
+            output = output.split(" ")
+            now = len(output)
+            if now - 1 > pre:
+                # print(" ".join(outputs[pre:now-1]), end=" ", flush=True)
+                pre = now - 1
+        # print(" ".join(outputs[pre:]), flush=True)
+        print("Streaming finished\n")
 
-        return self.generate_stream(self.tokenizer, self.model, params, self.args.device)
+        self.conv.messages[-1][-1] = " ".join(output)
+        # print(self.conv.messages[-1][1], "\n")
+        return self.conv.messages[-1][1]
+        # return self.generate_stream(self.tokenizer, self.model, params, self.args.device)
 
 
     def run(self, inp):
+        print("Vicuna has been reached\n")
         self.conv.append_message(self.conv.roles[0], inp)
         self.conv.append_message(self.conv.roles[1], None)
+        print("Input is appended\n")
         prompt = self.conv.get_prompt()
-
+        print("Prompt was fetched\n")
         params = {
         "model": self.args.model_name,
         "prompt": prompt,
@@ -452,18 +709,21 @@ class FastChatModel(TTTStrategy):
         "stop": self.conv.sep if self.conv.sep_style == SeparatorStyle.ADD_COLON_SINGLE else self.conv.sep2,
         }
 
-        print(f"{self.conv.roles[1]}: ", end="", flush=True)
+        # print(f"{self.conv.roles[1]}: ", end="", flush=True)
         pre = 0
+        print("Streaming started\n")
         for outputs in self.generate_stream(self.tokenizer, self.model, params, self.args.device):
             outputs = outputs[len(prompt) + 1:].strip()
             outputs = outputs.split(" ")
             now = len(outputs)
             if now - 1 > pre:
-                print(" ".join(outputs[pre:now-1]), end=" ", flush=True)
+                # print(" ".join(outputs[pre:now-1]), end=" ", flush=True)
                 pre = now - 1
-        print(" ".join(outputs[pre:]), flush=True)
+        # print(" ".join(outputs[pre:]), flush=True)
+        print("Streaming finished\n")
 
         self.conv.messages[-1][-1] = " ".join(outputs)
+        # print(self.conv.messages[-1][1], "\n")
         return self.conv.messages[-1][1]
     
     def clear_history(self):
@@ -473,19 +733,177 @@ class FastChatModel(TTTStrategy):
         del self.model
         self.model = None
         torch.cuda.empty_cache()
+
+
+class PersonaGPT(TTTStrategy):
+    """ A text to text strategy, it builds on the DialoGPT-medium pretrained model based on the GPT-2 architecture. Subclass of TTTStrategy
+    ----------
+    Attributes:
+
+
+    ----------
+    Functions:
+
+    ----------
+    """
+    def __init__(self):
+        """
+        ----------
+        Parameters: None
+        ----------
+        Return: None
+        ----------
+        """
+        super().__init__()            
+        self.tokenizer = GPT2Tokenizer.from_pretrained("af1tang/personaGPT", padding_side='left')
+        self.model = GPT2LMHeadModel.from_pretrained("af1tang/personaGPT")
+        if torch.cuda.is_available():
+            self.model = self.model.cuda()
+        self.dialog_hx = []
+
+    def flatten(self, l):
+        return [item for sublist in l for item in sublist]
+    
+    def to_data(self, x):
+        if torch.cuda.is_available():
+            x = x.cpu()
+        return x.data.numpy()
+    
+    def to_var(self, x):
+        if not torch.is_tensor(x):
+            x = torch.Tensor(x)
+        if torch.cuda.is_available():
+            x = x.cuda()
+        return x
+    
+    def display_dialog_history(self):
+        for j, line in enumerate(self.dialog_hx):
+            msg = self.tokenizer.decode(line)
+            if j %2 == 0:
+                print(">> User: "+ msg)
+            else:
+                print("Bot: "+msg)
+                print()
+    
+    def generate_next(self, bot_input_ids, do_sample=True, top_k=10, top_p=.92,
+                  max_new_tokens=1000):
+        full_msg = self.model.generate(bot_input_ids, do_sample=True,
+                                                top_k=top_k, top_p=top_p, 
+                                                max_new_tokens=max_new_tokens, pad_token_id=self.tokenizer.eos_token_id)
+        msg = self.to_data(full_msg.detach()[0])[bot_input_ids.shape[-1]:]
+        return msg
+
+    def run(self, inp):
+        # encode the user input
+        user_inp = self.tokenizer.encode(inp + self.tokenizer.eos_token)
+        # append to the chat history
+        self.dialog_hx.append(user_inp)
+            
+        # generated a response while limiting the total chat history to 1000 tokens, 
+        bot_input_ids = self.to_var([self.flatten(self.dialog_hx)]).long()
+        msg = self.generate_next(bot_input_ids)
+        self.dialog_hx.append(msg)
+        return self.tokenizer.decode(msg, skip_special_tokens=True)
+    
+    def clear_history(self):
+        self.dialog_hx.clear()
+    
+    def clear_cache(self):
+        del self.model
+        self.model = None
+        torch.cuda.empty_cache()
+
+
+class BotPipline(TTTStrategy):
+    """ A text to text strategy. Subclass of TTTStrategy
+    ----------
+    Attributes:
+
+
+    ----------
+    Functions:
+
+    ----------
+    """
+    def __init__(self):
+        """
+        ----------
+        Parameters: None
+        ----------
+        Return: None
+        ----------
+        """
+        super().__init__()
+        self.conv = pipeline("conversational", model=self.model_name, device=0)
+        self.conversation = Conversation()
+
+    def run(self, inp):
+        
+        self.conversation.add_user_input(inp)    
+        
+        return self.conv(self.conversation).generated_responses[-1]
+    
+    def clear_history(self):
+        del self.conversation
+        self.conversation = Conversation()
+    
+    def clear_cache(self):
+        del self.conv
+        self.conv = None
+        torch.cuda.empty_cache()
+
+
+class BlenderBot(BotPipline):
+
+    def __init__(self):
+        self.model_name = "facebook/blenderbot-400M-distill"
+        super().__init__()
+    
+    def run(self, inp):
+        return super().run(inp)
+    
+    def clear_history(self):
+        return super().clear_history()
+    
+    def clear_cache(self):
+        return super().clear_cache()
+    
+
+class Guanaco(BotPipline):
+
+    def __init__(self):
+        self.model_name = "Fredithefish/Guanaco-3B-Uncensored-v2"
+        super().__init__()
+    
+    def run(self, inp):
+        return super().run(inp)
+    
+    def clear_history(self):
+        return super().clear_history()
+    
+    def clear_cache(self):
+        return super().clear_cache()
+
+
     
 
 
 class GTTSAPI(TTSStrategy):
     """
     ----------
-    Parameters:
+    Attributes: None
 
     ----------
     Functions:
+        run(): 
     ----------
     """
-    def run(self, text:str, lang:str = "en", slow=False, filepath:str = "../Files/text_to_speech.wav"):
+    def __init__(self):
+        super().__init__()
+        self.lang = "en"
+        self.slow=False
+
+    def run(self, text:str, filepath:str = "text_to_speech.wav"):
         """
         ----------
         Parameters:
@@ -494,10 +912,74 @@ class GTTSAPI(TTSStrategy):
         Return:
         ----------
         """
-        tts = gtts.gTTS(text, lang=lang, slow=slow)
+        tts = gtts.gTTS(text, lang=self.lang, slow=self.slow)
         tts.save(filepath)
-        # playsound(filepath)
         return filepath
 
+class SpeechT5(TTSStrategy):
+    """
+    ----------
+    Attributes: None
+
+    ----------
+    Functions:
+        run(): 
+    ----------
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        # self.device = "cpu"
+        self.processor = SpeechT5Processor.from_pretrained("microsoft/speecht5_tts")
+        self.model = SpeechT5ForTextToSpeech.from_pretrained("microsoft/speecht5_tts").to(self.device)
+        self.vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan").to(self.device)
+        self.embeddings_dataset = load_dataset("Matthijs/cmu-arctic-xvectors", split="validation")
+        
+        self.speakers_list = {
+            'awb': 0,     # Scottish male
+            'bdl': 1138,  # US male
+            'clb': 2271,  # US female
+            'jmk': 3403,  # Canadian male
+            'ksp': 4535,  # Indian male
+            'rms': 5667,  # US male
+            'slt': 6799   # US female
+        }
+        self.speaker = self.speakers_list["slt"]
+
+    def run(self, text:str, filepath:str = "text_to_speech.wav"):
+        inputs = self.processor(text=text, return_tensors="pt").to(self.device)
+        if self.speaker is not None:
+            # load xvector containing speaker's voice characteristics from a dataset
+            speaker_embeddings = torch.tensor(self.embeddings_dataset[self.speaker]["xvector"]).unsqueeze(0).to(self.device)
+        else:
+            # random vector, meaning a random voice
+            speaker_embeddings = torch.randn((1, 512)).to(self.device)
+        # generate speech with the models
+        speech = self.model.generate_speech(inputs["input_ids"], speaker_embeddings, vocoder=self.vocoder)
+        
+        sf.write(filepath, speech.cpu().numpy(), samplerate=16000)
+        return filepath
 		
 
+class Espnet(TTSStrategy):
+    """
+    ----------
+    Attributes: None
+
+    ----------
+    Functions:
+        run(): 
+    ----------
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.model = Text2Speech.from_pretrained("espnet/kan-bayashi_ljspeech_vits")
+
+    def run(self, text:str, filepath:str = "/text_to_speech.wav"):
+        speech = self.model(text)
+        
+        sf.write(filepath, speech['wav'].numpy(), samplerate=16000)
+        return filepath
+		
