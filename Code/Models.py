@@ -10,7 +10,6 @@ from datasets import load_dataset
 import soundfile as sf
 from espnet2.bin.tts_inference import Text2Speech
 
-# OPENAI_API_KEY="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"
 
 
 
