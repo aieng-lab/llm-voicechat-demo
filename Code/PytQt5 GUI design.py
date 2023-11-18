@@ -1,7 +1,5 @@
-# # Welcome to PyShine
-# # This is part 16 of the PyQt5 learning series
-# # Based on parameters, the GUI will plot Video using OpenCV and Audio using Matplotlib in PyQt5
-# # We will use Qthreads to run the audio/Video streams
+# # This is was based on part 16 of the PyQt5 learning series
+# For details visit pyshine.com
 
 import sys
 import matplotlib
@@ -15,19 +13,14 @@ import sounddevice as sd
 from PyQt5 import QtCore, QtWidgets,QtGui
 from PyQt5 import uic
 from PyQt5.QtCore import pyqtSlot, QFile, QTextStream
-from PyQt5.QtMultimedia import QAudioDeviceInfo,QAudio
 import time
 import os
-import wave, pyaudio, pdb
+import wave, pyaudio
 import traceback
 import librosa
 import soundfile as sf
 import BreezeStyleSheets.breeze_resources
 from Models import *
-
-
-
-# For details visit pyshine.com
 
 
 
@@ -334,7 +327,6 @@ class STTWorker(QtCore.QRunnable):
 		except:
 			self.signals.finished.emit(0)
 		else:
-			# self.signals.result.emit(result)
 			self.signals.finished.emit(1)	
 
 
@@ -364,13 +356,9 @@ class VicunaWorker(QtCore.QRunnable):
 		except:
 			traceback.print_exc()
 			exctype, value = sys.exc_info()[:2]
-			# self.signals.error.emit((exctype, value, traceback.format_exc()))
 			self.signals.finished.emit(0)
 		else:
-			# self.signals.result.emit(1)  # Return the result of the processing
 			self.signals.finished.emit(1)
-		# finally:
-		# 	self.signals.finished.emit()  # Done
 
 
 
@@ -393,7 +381,6 @@ class TTSWorker(QtCore.QRunnable):
 		self.signals.start.emit("BOT Status:   GENERATING  ... ")
 		try:
 			result = self.function(*self.args, **self.kwargs)
-			# self.signals.result.emit(result)
 		except:
 			self.signals.finished.emit(0)
 		else:
