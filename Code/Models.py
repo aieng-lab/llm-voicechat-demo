@@ -3,13 +3,20 @@ import speech_recognition as sr
 # from langchain.llms import OpenAI
 import gtts
 from abc import ABC, abstractmethod
-from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM, GPT2Tokenizer, GPT2LMHeadModel, Conversation, SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan
+from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM, GPT2Tokenizer, GPT2LMHeadModel
+from transformers import AutoProcessor, AutoModel, AutoModelForSpeechSeq2Seq, BarkModel
+from transformers import Conversation, SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan
 import argparse
 from fastchat.conversation import conv_templates, SeparatorStyle
 from datasets import load_dataset
 import soundfile as sf
 from espnet2.bin.tts_inference import Text2Speech
-
+import scipy
+import numpy as np
+from transformers import WhisperProcessor, WhisperForConditionalGeneration
+from optimum.bettertransformer import BetterTransformer
+from datasets import Audio, load_dataset
+# OPENAI_API_KEY="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"
 
 
 
@@ -246,7 +253,7 @@ class WhisperModel(STTStrategy):
         with sr.Microphone() as source:
             self.r.adjust_for_ambient_noise(source)
             audio = self.r.listen(source)
-            text=self.p(audio.get_flac_data(), max_new_tokens=500)["text"]
+            text=self.p(audio.get_flac_data(), max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
         return text
     
     def run_gradio(self, audio):
@@ -283,7 +290,14 @@ class WhisperTiny(WhisperModel):
         ----------
         """
         super().__init__()
-        self.p = pipeline("automatic-speech-recognition", model="openai/whisper-tiny")
+        
+        self.processor = WhisperProcessor.from_pretrained("openai/whisper-tiny")
+        self.forced_decoder_ids = self.processor.get_decoder_prompt_ids(language="german", task="transcribe")
+        # self.model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-tiny")
+        self.p = pipeline(task="automatic-speech-recognition", model="openai/whisper-tiny", generate_kwargs={"forced_decoder_ids": self.forced_decoder_ids})
+        
+
+
 
     def run(self)-> str:
         """ Record a speech using the microphone then convert and return it as text.
@@ -380,7 +394,7 @@ class WhisperLarge(WhisperModel):
         ----------
         """
         super().__init__()    
-        self.p = pipeline("automatic-speech-recognition", model="openai/whisper-large")
+        self.p = pipeline("automatic-speech-recognition", model="openai/whisper-large", device=0)
 
     def run(self)-> str:
         """ Record a speech using the microphone then convert and return it as text.
@@ -406,7 +420,8 @@ class WhisperLarge(WhisperModel):
 
         """
         return super().run_gradio(audio)
-    
+        
+
 class WhisperLargeV2(WhisperModel):
     """A speech to text strategy using Whisper model from HuggingFace hub. Subclass of WhisperModel.
     ----------
@@ -428,7 +443,30 @@ class WhisperLargeV2(WhisperModel):
         ----------
         """
         super().__init__()
-        self.p = pipeline("automatic-speech-recognition", model="openai/whisper-large-v2")
+        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        self.torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+
+        self.model_id = "openai/whisper-large-v2"
+
+        self.model = AutoModelForSpeechSeq2Seq.from_pretrained(
+            self.model_id, torch_dtype=self.torch_dtype, low_cpu_mem_usage=True, use_safetensors=True
+        )
+        self.model.to(self.device)
+
+        processor = AutoProcessor.from_pretrained(self.model_id)
+
+        self.p = pipeline(
+            "automatic-speech-recognition",
+            model=self.model,
+            tokenizer=processor.tokenizer,
+            feature_extractor=processor.feature_extractor,
+            max_new_tokens=128,
+            chunk_length_s=30,
+            batch_size=16,
+            return_timestamps=True,
+            torch_dtype=self.torch_dtype,
+            device=self.device,
+        )
 
     def run(self)-> str:
         """ Record a speech using the microphone then convert and return it as text.
@@ -536,7 +574,8 @@ class FastChatModel(TTTStrategy):
         ----------
         """
         super().__init__()            
-        self.args = dict(model_name='lmsys/vicuna-7b-v1.3',
+        # self.args = dict(model_name='lmsys/vicuna-7b-v1.3',
+        self.args = dict(model_name='lmsys/vicuna-7b-v1.5-16k',
                         device='cuda',
                         num_gpus='1',
                         load_8bit=True,
@@ -944,7 +983,7 @@ class SpeechT5(TTSStrategy):
             'rms': 5667,  # US male
             'slt': 6799   # US female
         }
-        self.speaker = self.speakers_list["slt"]
+        self.speaker = self.speakers_list["rms"]
 
     def run(self, text:str, filepath:str = "text_to_speech.wav"):
         inputs = self.processor(text=text, return_tensors="pt").to(self.device)
@@ -982,3 +1021,40 @@ class Espnet(TTSStrategy):
         sf.write(filepath, speech['wav'].numpy(), samplerate=16000)
         return filepath
 		
+
+
+class Bark(TTSStrategy):
+    """
+    ----------
+    Attributes: None
+
+    ----------
+    Functions:
+        run(): 
+    ----------
+    """
+
+    def __init__(self, voice_preset = "v2/de_speaker_5") -> None:
+        super().__init__()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        self.model = BarkModel.from_pretrained("suno/bark", torch_dtype=torch.float32).to(self.device)
+
+        # convert to bettertransformer
+        self.model = BetterTransformer.transform(self.model, keep_original_model=False)
+
+        # enable CPU offload
+        self.model.enable_cpu_offload()
+
+        self.processor = AutoProcessor.from_pretrained("suno/bark")
+
+        self.voice_preset = voice_preset
+
+
+    def run(self, text:str, filepath:str = "text_to_speech.wav"):
+        
+        inputs = self.processor(text, voice_preset=self.voice_preset).to(self.device)
+        audio_array = self.model.generate(**inputs)
+        sampling_rate = self.model.generation_config.sample_rate
+        sf.write(filepath, audio_array.cpu().numpy().squeeze(), samplerate=sampling_rate)
+        return filepath
