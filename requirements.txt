@@ -32,3 +32,5 @@ tqdm==4.66.1
 transformers==4.33.2
 uvicorn==0.23.2
 wavedrom==2.0.3.post3
+PyQt5==5.15.10
+optimum==1.14.1
