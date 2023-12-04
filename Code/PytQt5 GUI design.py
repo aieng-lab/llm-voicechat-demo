@@ -45,7 +45,7 @@ class PyShine_LIVE_PLOT_APP(QtWidgets.QMainWindow):
 	def __init__(self, params=params):
 		print("Initializing ... \n")
 		QtWidgets.QMainWindow.__init__(self)
-		self.ui = uic.loadUi('new_main.ui',self)
+		self.ui = uic.loadUi('main.ui',self)
 		self.resize(888, 600)
 		self.tmpfile = 'temp.wav'
 
