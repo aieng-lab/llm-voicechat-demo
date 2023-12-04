@@ -12,7 +12,7 @@ from espnet2.bin.tts_inference import Text2Speech
 from transformers import WhisperProcessor
 from optimum.bettertransformer import BetterTransformer
 from datasets import load_dataset
-
+import numpy as np
 
 
 
@@ -189,9 +189,13 @@ class WhisperModel(STTStrategy):
         ----------
         """
         with sr.Microphone() as source:
+            print("Microphone is started ... \n")
             self.r.adjust_for_ambient_noise(source)
+            print("Microphone is listening ... \n")
             audio = self.r.listen(source)
+            print("Microphone is recognizing ... \n")
             text=self.p(audio.get_flac_data(), max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
+            print(text, "\n")
         return text
     
     def run_gradio(self, audio):
@@ -392,7 +396,7 @@ class WhisperLargeV2(WhisperModel):
         self.model.to(self.device)
 
         processor = AutoProcessor.from_pretrained(self.model_id)
-
+        self.r = sr.Recognizer()
         self.p = pipeline(
             "automatic-speech-recognition",
             model=self.model,
@@ -416,7 +420,17 @@ class WhisperLargeV2(WhisperModel):
             text:str, the converted text from the recorded speech
         ----------
         """
-        return super().run()          
+        print("stt_model hase been reached ...\n")
+        with sr.Microphone() as source:
+            print("Microphone is started ... \n")
+            self.r.adjust_for_ambient_noise(source)
+            print("Microphone is listening ... \n")
+            audio = self.r.listen(source)
+            print("Microphone is recognizing ... \n")
+            text=self.p(audio.get_flac_data(), max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
+            print(text, "\n")
+        return text
+        # return super().run()          
 
     def run_gradio(self, audio):
         """ Convert audio data recorded with a gradio microphone to text.
@@ -627,15 +641,15 @@ class FastChatModel(TTTStrategy):
         "stop": self.conv.sep if self.conv.sep_style == SeparatorStyle.ADD_COLON_SINGLE else self.conv.sep2,
         }
 
-        pre = 0
+        yielded_output = ""
         for outputs in self.generate_stream(self.tokenizer, self.model, params, self.args.device):
-            outputs = outputs[len(prompt) + 1:].strip()
-            outputs = outputs.split(" ")
-            now = len(outputs)
-            if now - 1 > pre:
-                pre = now - 1
-        self.conv.messages[-1][-1] = " ".join(outputs)
-        return self.conv.messages[-1][1]
+            if len(yielded_output) == 0:
+                outputs = outputs[len(prompt):].strip()
+            else:
+                outputs = outputs[len(prompt) + len(yielded_output) + 1:].strip()
+            if outputs.endswith(('.', '?', '!', ',', ':')):
+                yielded_output+= " " + outputs
+                yield outputs
     
     def clear_history(self):
         self.conv.messages.clear()
@@ -880,7 +894,7 @@ class Bark(TTSStrategy):
         super().__init__()
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        self.model = BarkModel.from_pretrained("suno/bark", torch_dtype=torch.float32).to(self.device)
+        self.model = BarkModel.from_pretrained("suno/bark", torch_dtype=torch.float16).to(self.device)
 
         # convert to bettertransformer
         self.model = BetterTransformer.transform(self.model, keep_original_model=False)
@@ -893,10 +907,51 @@ class Bark(TTSStrategy):
         self.voice_preset = voice_preset
 
 
+    def run_ex(self, text:str, filepath:str = "text_to_speech.wav"):
+        
+        inputs = self.processor(text, voice_preset=self.voice_preset).to(self.device)
+        audio_array = self.model.generate(**inputs)
+        sampling_rate = self.model.generation_config.sample_rate
+        data = audio_array.cpu().numpy().squeeze()
+        data = data.astype(np.float32)
+        # sf.write(filepath, data, samplerate=sampling_rate)
+        # return filepath
+        return data
+    
+    def run_untitled(self, text:str, filepath:str = "text_to_speech.wav"):
+        
+        inputs = self.processor(text, voice_preset=self.voice_preset).to(self.device)
+        audio_array = self.model.generate(**inputs)
+        sampling_rate = self.model.generation_config.sample_rate
+        data = audio_array.cpu().numpy().squeeze()
+        data = data.astype(np.float32)
+        # sf.write(filepath, data, samplerate=sampling_rate)
+        # return filepath
+        return data, sampling_rate
+    
+
     def run(self, text:str, filepath:str = "text_to_speech.wav"):
         
         inputs = self.processor(text, voice_preset=self.voice_preset).to(self.device)
         audio_array = self.model.generate(**inputs)
         sampling_rate = self.model.generation_config.sample_rate
-        sf.write(filepath, audio_array.cpu().numpy().squeeze(), samplerate=sampling_rate)
+        data = audio_array.cpu().numpy().squeeze()
+        data = data.astype(np.float32)
+        sf.write(filepath, data, samplerate=sampling_rate)
         return filepath
+    
+    def run_ex_2(self, text:str, filepath:str = "text_to_speech.wav"):
+        out_data = np.zeros(shape=(1,1), dtype=np.float32)
+        for i in range(len(text)):
+            print("Phrase {}/{} is fetched\n".format(i+1, len(text)))
+            inputs = self.processor(text[i], voice_preset=self.voice_preset).to(self.device)
+            audio_array = self.model.generate(**inputs)
+            sampling_rate = self.model.generation_config.sample_rate
+            data = audio_array.cpu().numpy().squeeze()
+            data = data.astype(np.float32)
+            out_data = np.concatenate((out_data, data), axis=None)
+            print("Phrase {}/{} is done\n".format(i+1, len(text)))
+        sf.write(filepath, out_data, samplerate=sampling_rate)
+        return filepath
+
+#"Hallo, da is Salim. Ich komme aus Syrien und bin 28 Jahre alt. Ich mache einen Master in Informatik in Passau. Ich habe im Moment einen Minijob an der Uni. Dabei muss ich ein VoiceBot entwickeln."
