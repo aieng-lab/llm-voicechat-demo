@@ -1,9 +1,12 @@
 import torch
 import speech_recognition as sr
 from abc import ABC, abstractmethod
+
 from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM, GPT2Tokenizer, GPT2LMHeadModel
 from transformers import AutoProcessor, AutoModelForSpeechSeq2Seq, BarkModel
 from transformers import Conversation, SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan
+from transformers import WhisperProcessor, WhisperForConditionalGeneration
+
 import argparse
 from fastchat.conversation import conv_templates, SeparatorStyle
 from datasets import load_dataset
@@ -297,7 +300,7 @@ class WhisperMedium(WhisperModel):
       
         ----------
         Return: 
-            text:str, the converted text from the recorded speech
+            text:str, the converted text from the recorded speechstt_model
         ----------
         """
         return super().run()
@@ -387,21 +390,26 @@ class WhisperLargeV2(WhisperModel):
         super().__init__()
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
         self.torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+        
 
         self.model_id = "openai/whisper-large-v2"
 
         self.model = AutoModelForSpeechSeq2Seq.from_pretrained(
             self.model_id, torch_dtype=self.torch_dtype, low_cpu_mem_usage=True, use_safetensors=True
         )
+        # self.model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-large-v2")
         self.model.to(self.device)
 
-        processor = AutoProcessor.from_pretrained(self.model_id)
+        self.processor = AutoProcessor.from_pretrained(self.model_id)
+        # self.processor = WhisperProcessor.from_pretrained("openai/whisper-large-v2")
+
         self.r = sr.Recognizer()
+        
         self.p = pipeline(
             "automatic-speech-recognition",
             model=self.model,
-            tokenizer=processor.tokenizer,
-            feature_extractor=processor.feature_extractor,
+            tokenizer=self.processor.tokenizer,
+            feature_extractor=self.processor.feature_extractor,
             max_new_tokens=128,
             chunk_length_s=30,
             batch_size=16,
@@ -427,8 +435,9 @@ class WhisperLargeV2(WhisperModel):
             print("Microphone is listening ... \n")
             audio = self.r.listen(source)
             print("Microphone is recognizing ... \n")
-            text=self.p(audio.get_flac_data(), max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
-            print(text, "\n")
+            audio_data = audio.get_flac_data()
+            text=self.p(audio_data, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
+            # text = "Hallo Vicuna, kannst du mir eine kurze Geschichte erzählen?"
         return text
         # return super().run()          
 
@@ -650,6 +659,7 @@ class FastChatModel(TTTStrategy):
             if outputs.endswith(('.', '?', '!', ',', ':')):
                 yielded_output+= " " + outputs
                 yield outputs
+        yield "END"
     
     def clear_history(self):
         self.conv.messages.clear()
@@ -876,6 +886,10 @@ class Espnet(TTSStrategy):
         
         sf.write(filepath, speech['wav'].numpy(), samplerate=16000)
         return filepath
+    
+    def run(self, text:str, filepath:str = "/text_to_speech.wav"):
+        speech = self.model(text)
+        return speech['wav'].numpy().astype(np.float32)
 		
 
 
@@ -910,7 +924,9 @@ class Bark(TTSStrategy):
     def run_ex(self, text:str, filepath:str = "text_to_speech.wav"):
         
         inputs = self.processor(text, voice_preset=self.voice_preset).to(self.device)
+        print("Generating started \n")
         audio_array = self.model.generate(**inputs)
+        print("Generating finished\n")
         sampling_rate = self.model.generation_config.sample_rate
         data = audio_array.cpu().numpy().squeeze()
         data = data.astype(np.float32)
