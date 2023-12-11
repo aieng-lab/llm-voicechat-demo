@@ -21,7 +21,7 @@ import librosa
 import soundfile as sf
 import BreezeStyleSheets.breeze_resources
 from Models import *
-
+import debugpy
 
 
 class MplCanvas(FigureCanvas):
@@ -31,6 +31,213 @@ class MplCanvas(FigureCanvas):
 		self.axes.axis("off")
 		super(MplCanvas, self).__init__(fig)
 		fig.tight_layout()
+
+class VicunaSignals(QtCore.QObject):
+	finished = QtCore.pyqtSignal()
+	error = QtCore.pyqtSignal(str)
+	progress = QtCore.pyqtSignal(str)
+	start = QtCore.pyqtSignal(str)
+	end_of_generation = QtCore.pyqtSignal()
+
+class VicunaWorker(QtCore.QRunnable):
+
+	def __init__(self, query, welcome_message, *args, **kwargs):
+		super(VicunaWorker, self).__init__()
+		self.ttt_model = FastChatModel()
+		self.welcome_message = welcome_message
+		self.query = query
+		self.waiting = True
+		self.running = True
+		self.args = args
+		self.kwargs = kwargs
+		self.signals = VicunaSignals()
+		self.init = True
+
+	def run(self):
+		# debugpy.debug_this_thread()
+		print("\nVicunaWorker\n")
+		while self.running:
+			
+			if self.init:
+				self.ttt_model.conv.append_message(self.ttt_model.conv.roles[1], self.welcome_message)
+				self.init = False
+
+			if not self.waiting:
+				self.signals.start.emit("BOT Status:   Querying  ... ")
+				# self.function(*self.args, **self.kwargs)
+				for outputs in self.ttt_model.run(self.query):
+					if outputs == "END":
+						self.signals.end_of_generation.emit()
+					else:
+						print(outputs)
+						self.signals.progress.emit(outputs)
+				self.waiting = True
+
+
+		self.signals.finished.emit()
+	
+	def wake(self, query):
+		self.query = query
+		self.waiting = False
+
+
+class TTSSignals(QtCore.QObject):
+	finished = QtCore.pyqtSignal()
+	update_plot = QtCore.pyqtSignal(object)
+	start = QtCore.pyqtSignal(str)
+	init = QtCore.pyqtSignal()
+	end_of_generation = QtCore.pyqtSignal()
+
+
+class TTSWorker(QtCore.QRunnable):
+
+	def __init__(self, tts_model=None, txt_queue=None, running=True, *args, **kwargs):
+		super(TTSWorker, self).__init__()
+		# self.tts_model = tts_model
+		self.tts_model = Bark(voice_preset = "v2/de_speaker_5")
+		self.txt_queue = txt_queue
+		self.running = running
+		self.args = args
+		self.kwargs = kwargs
+		self.signals = TTSSignals()
+		self.init = True
+	
+	def generate_audio(self, progress):
+		return self.tts_model.run_ex(progress)
+	
+	def run(self):
+		# debugpy.debug_this_thread()
+		print("TTSWorker\n")
+		while self.running:
+			if not self.txt_queue.empty():
+				item = self.txt_queue.get()
+				if item == "END":
+					self.signals.end_of_generation.emit()
+					time.sleep(10)
+					# break
+				else:
+					print("########\n")
+					print(item, "\n")
+					print("########\n")
+					self.signals.start.emit("BOT Status:   GENERATING  ... ")
+					result = self.generate_audio(item)
+					# chunck = 1024 * 4
+					# result = np.ones((chunck, 1), dtype=np.float32)
+					print("Audio generated for item\n")
+					self.signals.update_plot.emit(result)
+					self.signals.finished.emit()
+			
+				if self.init:
+					self.signals.start.emit("BOT Status:   IDLE  ... ")
+					self.signals.init.emit()
+					self.init = False
+			else:
+				continue
+	
+	def stop_running(self):
+		self.running=False
+
+
+class WorkerSignals(QtCore.QObject):
+	finished = QtCore.pyqtSignal()
+
+# www.pyshine.com
+class Worker(QtCore.QRunnable):
+
+	def __init__(self, function, *args, **kwargs):
+		super(Worker, self).__init__()
+		self.function = function
+		self.args = args
+		self.kwargs = kwargs
+		self.signals = WorkerSignals()
+
+	def run(self):
+		# debugpy.debug_this_thread()
+		# print("Worker\n")
+		self.function(*self.args, **self.kwargs)
+		self.signals.finished.emit()		
+
+
+
+class AudioOutputWorkerSignals(QtCore.QObject):
+	finished = QtCore.pyqtSignal()
+	waiting = QtCore.pyqtSignal()
+	status = QtCore.pyqtSignal(str)
+
+# www.pyshine.com
+class AudioOutputWorker(QtCore.QRunnable):
+
+	def __init__(self, function, audio_queue, CHUNK, *args, **kwargs):
+		super(AudioOutputWorker, self).__init__()
+		self.function = function
+		self.audio_queue = audio_queue
+		self.active = True
+		self.waiting = False
+		self.sleeping = True
+		self.CHUNK = CHUNK
+		self.args = args
+		self.kwargs = kwargs
+		self.signals = AudioOutputWorkerSignals()
+
+	def run(self):
+		# debugpy.debug_this_thread()
+		print("AudioOutputWorker\n")
+		while self.active:
+			if not self.sleeping:
+				if not self.audio_queue.empty():
+					self.signals.status.emit("BOT Status:   SPEAKING  ... ")	
+					self.function(*self.args, **self.kwargs)
+				else:
+					if  self.waiting:
+						print("######### I'm waiting #########\n")
+						self.signals.waiting.emit()
+						self.waiting = False
+						time.sleep(10)
+		self.signals.finished.emit()
+
+	def stop_running(self):
+		self.active=False
+
+	def wait(self):
+		self.waiting = True
+	
+	def wake(self):
+		self.sleeping = False
+
+class STTSignals(QtCore.QObject):
+	start = QtCore.pyqtSignal(str)
+	finished = QtCore.pyqtSignal()
+	result = QtCore.pyqtSignal(str)
+
+# www.pyshine.com
+class STTWorker(QtCore.QRunnable):
+
+	def __init__(self, *args, **kwargs):
+		super(STTWorker, self).__init__()
+		self.stt_model = WhisperLargeV2()
+		self.args = args
+		self.kwargs = kwargs
+		self.signals = STTSignals()
+
+
+	def run(self):
+		# debugpy.debug_this_thread()
+		print("STTWorker\n")
+		with sr.Microphone() as source:
+			print("Microphone is started ... \n")
+			self.stt_model.r.adjust_for_ambient_noise(source)
+			print("Microphone is listening ... \n")
+			self.signals.start.emit("BOT Status:   lISTENING  ... ")
+			audio = self.stt_model.r.listen(source)
+			print("Microphone is recognizing ... \n")
+			self.signals.start.emit("BOT Status:   RECOGNIZING  ... ")
+			audio_data = audio.get_flac_data()
+			text=self.stt_model.p(audio_data, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
+		print("result : " + text)
+		self.signals.result.emit(text)
+		self.signals.finished.emit()	
+		
+
 
 class PyShine_LIVE_PLOT_APP(QtWidgets.QMainWindow):
 	def __init__(self, params):
@@ -44,7 +251,6 @@ class PyShine_LIVE_PLOT_APP(QtWidgets.QMainWindow):
 		icon = QtGui.QIcon()
 		icon.addPixmap(QtGui.QPixmap("PyShine.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
 		self.setWindowIcon(icon)
-		self.global_thread = QtCore.QThreadPool.globalInstance()
 		self.threadpool = QtCore.QThreadPool()	
 		self.stt_pool = QtCore.QThreadPool()
 		self.ttt_pool = QtCore.QThreadPool()
@@ -84,39 +290,51 @@ class PyShine_LIVE_PLOT_APP(QtWidgets.QMainWindow):
 		self.speaking_allowed =True
 		self.pushButton_2.setEnabled(False)
 		self.pushButton.setEnabled(False)
-		# print("Loading STT Model ... \n")
-		self.stt_model = self.params["stt_model"]
-		# print("Loading TTT Model ... \n")
-		self.ttt_model = self.params["ttt_model"]
-		# print("Loading TTS Model ... \n")
-		self.tts_model = self.params["tts_model"]
+		
 
 		self.response=""
 		self.query=""
 		self.filepaths=[]
 
-		# self.label_6.setText("BOT Status:   IDLE  ... ")		
 		self.welcome_message = self.params["welcome_message"]
-		self.ttt_model.conv.append_message(self.ttt_model.conv.roles[1], self.welcome_message)
 		self.txt_queue.put_nowait(self.welcome_message)
+		self.txt_queue.put_nowait("END")
 
 
 
 		self.status_worker = None
-		self.mic_worker = None
-		self.vicuna_worker = None
-		self.speaker_worker = None
 		
-		self.tts_worker = TTSWorker(tts_model = self.tts_model, txt_queue=self.txt_queue)
+		
+		self.tts_worker = TTSWorker(txt_queue=self.txt_queue)
 		self.tts_worker.signals.update_plot.connect(self.update_audio_queue)
 		self.tts_worker.signals.start.connect(self.update_status)
+		self.tts_worker.signals.end_of_generation.connect(self.freeze_speaker)
 		self.tts_worker.signals.init.connect(self.start)
-		# self.tts_pool.start(self.tts_worker)
-		self.global_thread.start(self.tts_worker)
+		self.tts_pool.start(self.tts_worker)
+		
+		
+		self.mic_worker = STTWorker()
+		
+		self.vicuna_worker = VicunaWorker(query=self.query, welcome_message = self.welcome_message)
+		self.vicuna_worker.signals.start.connect(self.update_status)
+		self.vicuna_worker.signals.progress.connect(self.update_txt_queue)
+		self.ttt_pool.start(self.vicuna_worker)
+
+	
+		self.speaker_worker = AudioOutputWorker(function=self.getAudio, audio_queue=self.audio_queue, CHUNK=self.CHUNK)
+		self.speaker_worker.signals.waiting.connect(self.start_mic_worker)
+		self.speaker_worker.signals.status.connect(self.update_status)
+		self.threadpool.start(self.speaker_worker)
+
 
 		self.pushButton_2.clicked.connect(self.stop_worker)
 		self.pushButton.clicked.connect(self.start_worker_4_speaker)
-		# self.pushButton.clicked.connect(self.start_worker_1_mic)
+	
+	def freeze_speaker(self):
+		self.speaker_worker.wait()
+
+	def wake_vicuna(self, query):
+		self.vicuna_worker.wake(query)
 
 	def start(self):
 		print("Initialiazing is finished.\n")
@@ -130,62 +348,46 @@ class PyShine_LIVE_PLOT_APP(QtWidgets.QMainWindow):
 
 	def update_status(self, text):
 		self.status_worker = Worker(self.display_status, text)
-		# self.threadpool.start(self.status_worker)
-		self.global_thread.start(self.status_worker)
+		self.threadpool.start(self.status_worker)
 		
-	
-	def record_speech(self):
-		print("Recording is started ...\n")
-		# self.query = self.stt_model.run()
-		self.query = "Hallo Vicuna, kannst du mir eine kurze Geschichte erzählen?"
-		print("self.stt_model.run() ...\n")
-		print(self.query)
-		self.record_allowed = False
-		self.query_allowed = True
-		print("\nSpeech_to_text is finished\n")
-		# QtWidgets.QApplication.processEvents()
-		return self.query
 
-	def start_worker_1_mic(self):
-		print("start_worker_1 is reached\n")
+	def start_mic_worker(self):
+		print("start_mic_worker is reached\n")
 		if not self.stopped:
 			print("Recording is allowed\n")
-			self.mic_worker = STTWorker(self.record_speech)
 			self.mic_worker.signals.start.connect(self.update_status)
-			self.mic_worker.signals.finished.connect(self.start_worker_2_vicuna)
-			# self.stt_pool.start(self.mic_worker)	
-			self.global_thread.start(self.mic_worker)
-
+			self.mic_worker.signals.result.connect(self.start_worker_2_vicuna)
+			self.stt_pool.start(self.mic_worker)	
 		else:
 			print("Recording isn't allowed\n")
 		
 	
-	def query_vicuna(self, query:str):
+	def query_vicuna(self):
 		curr_time = time.time()
 		print("Querying Vicuna ...\n")
-		self.response =""
-		# self.response ="Hallo, da ist Salim. Ich komme aus Syrien und bin 28 Jahre alt. Ich mache einen Master in Informatik an der Universität Passau. Ich habe im Moment einen Minijob an der Uni. Dabei muss ich ein VoiceBot entwickeln."
-		for outputs in self.tts_model.run(query):
-			self.response+= " " + outputs
-			print("\n\n", outputs, "\n\n")
-			self.txt_queue.put_nowait(outputs)
+		# self.response =["Hallo, da ist Salim. Ich komme aus Syrien und bin 28 Jahre alt.",
+		# 		  "Ich mache einen Master in Informatik an der Universität Passau.",
+		# 		  "Ich habe im Moment einen Minijob an der Uni. Dabei muss ich ein VoiceBot entwickeln.",
+		# 		  "END"]
+		for item in self.response:
+			# print(item, "\n")
+			self.txt_queue.put(item)
+		print("Response is added to txt_queue\n")
+		# for outputs in self.tts_model.run(self.query):
+		# 	self.response+= " " + outputs
+		# 	print("\n\n", outputs, "\n\n")
+		# 	self.txt_queue.put(outputs)
 		self.query_allowed = False
 		self.generating_allowed = True
 		print("\nText_to_text took {:.2f}s to finish\n".format(time.time()-curr_time))
-		self.response = self.response.strip()
 		return self.response
 	
-	def start_worker_2_vicuna(self):
-		
+	def start_worker_2_vicuna(self, query):
 		if self.query_allowed and not self.stopped:
-			self.vicuna_worker = VicunaWorker(self.ttt_model, query=self.query)
-			self.vicuna_worker.signals.start.connect(self.update_status)
-			self.vicuna_worker.signals.progress.connect(self.update_txt_queue)
-			self.vicuna_worker.signals.finished.connect(self.start_worker_4_speaker)
-			self.generating_allowed = True
-			self.ttt_pool.start(self.vicuna_worker)
-			# self.global_thread.start(self.vicuna_worker)
-			# 		
+			print("\nstart_worker_2_vicuna is reached\n")
+			self.query = query
+			self.wake_vicuna(query)
+
 		elif not self.query_allowed:
 			print("Vicuna isn't available!\n")
 		elif self.stopped:
@@ -194,7 +396,7 @@ class PyShine_LIVE_PLOT_APP(QtWidgets.QMainWindow):
 			print("Unknown problem while querying! \n")
 	
 	def update_txt_queue(self, txt):
-		self.txt_queue.put_nowait(txt)
+		self.txt_queue.put(txt)
 
 	def getAudio(self):
 		if not self.audio_queue.empty():
@@ -226,12 +428,12 @@ class PyShine_LIVE_PLOT_APP(QtWidgets.QMainWindow):
 				except:
 					break
 	
-	def update_audio_queue(self, data:bytes):
+	def update_audio_queue(self, data):
 		self.audio_queue.put_nowait(data)
 	
 	def generate_plotdata(self):
 		if not self.plot_queue.empty():
-			audio_normalised = np.frombuffer(self.plot_queue.get_nowait(), dtype=np.float32)
+			audio_normalised = self.plot_queue.get_nowait()
 			return audio_normalised
 		else:
 			return np.zeros((self.CHUNK,len(self.channels)))
@@ -239,12 +441,8 @@ class PyShine_LIVE_PLOT_APP(QtWidgets.QMainWindow):
 
 	def start_worker_4_speaker(self):
 		if self.plotting and not self.stopped:
-			self.speaker_worker = AudioOutputWorker(function=self.getAudio, audio_queue=self.audio_queue, CHUNK=self.CHUNK)
-			self.speaker_worker.signals.waiting.connect(self.start_worker_1_mic)
-			self.speaker_worker.signals.status.connect(self.update_status)
-			self.speaker_worker.signals.progress.connect(self.update_plot_queue)
-			self.threadpool.start(self.speaker_worker)
-			# self.global_thread.start(self.speaker_worker)
+			self.speaker_worker.wake()
+
 		else:
 			print("The model couldn't generate a speech from the text response\n")
 
@@ -279,7 +477,7 @@ class PyShine_LIVE_PLOT_APP(QtWidgets.QMainWindow):
 				threads_num = self.threadpool.activeThreadCount() + self.stt_pool.activeThreadCount() + self.ttt_pool.activeThreadCount() + self.tts_pool.activeThreadCount() + 1
 			else:
 				threads_num = self.threadpool.activeThreadCount() + self.stt_pool.activeThreadCount() + self.ttt_pool.activeThreadCount() + self.tts_pool.activeThreadCount()
-			print('ACTIVE THREADS:',threads_num,end=" \r")
+			# print('ACTIVE THREADS:',threads_num,end=" \r")
 			if  self.plotting is True:
 				try: 
 					self.data = self.generate_plotdata()
@@ -308,184 +506,20 @@ class PyShine_LIVE_PLOT_APP(QtWidgets.QMainWindow):
 
 			self.canvas.draw()
 		except Exception as e:
-			
 			pass
 
 
 
-class WorkerSignals(QtCore.QObject):
-	finished = QtCore.pyqtSignal()
-
-# www.pyshine.com
-class Worker(QtCore.QRunnable):
-
-	def __init__(self, function, *args, **kwargs):
-		super(Worker, self).__init__()
-		self.function = function
-		self.args = args
-		self.kwargs = kwargs
-		self.signals = WorkerSignals()
-
-	@pyqtSlot()
-	def run(self):
-		self.function(*self.args, **self.kwargs)
-		self.signals.finished.emit()		
 
 
-
-class AudioOutputWorkerSignals(QtCore.QObject):
-	finished = QtCore.pyqtSignal()
-	progress = QtCore.pyqtSignal(bytes)
-	waiting = QtCore.pyqtSignal()
-	status = QtCore.pyqtSignal(str)
-
-# www.pyshine.com
-class AudioOutputWorker(QtCore.QRunnable):
-
-	def __init__(self, function, audio_queue, CHUNK, *args, **kwargs):
-		super(AudioOutputWorker, self).__init__()
-		self.function = function
-		self.audio_queue = audio_queue
-		self.running = True
-		self.waiting = True
-		self.CHUNK = CHUNK
-		self.args = args
-		self.kwargs = kwargs
-		self.signals = AudioOutputWorkerSignals()
-
-	@pyqtSlot()
-	def run(self):
-		while self.running:
-			if not self.audio_queue.empty():
-				self.waiting = False
-				self.signals.status.emit("BOT Status:   SPEAKING  ... ")	
-				self.function(*self.args, **self.kwargs)
-			else:
-				if not self.waiting:
-					self.signals.waiting.emit()
-					self.waiting = True
-		self.signals.finished.emit()
-
-	def stop_running(self):
-		self.running=False	
-	
-
-class STTSignals(QtCore.QObject):
-	start = QtCore.pyqtSignal(str)
-	finished = QtCore.pyqtSignal()
-	result = QtCore.pyqtSignal(str)
-
-# www.pyshine.com
-class STTWorker(QtCore.QRunnable):
-
-	def __init__(self, function, *args, **kwargs):
-		super(STTWorker, self).__init__()
-		self.function = function
-		self.args = args
-		self.kwargs = kwargs
-		self.signals = STTSignals()
-
-	@pyqtSlot()
-	def run(self):
-		self.signals.start.emit("BOT Status:   lISTENING  ... ")
-		try:
-			result = self.function(*self.args, **self.kwargs)
-			print("result : " + result)
-		except:
-			pass
-		self.signals.finished.emit()	
-
-
-class VicunaSignals(QtCore.QObject):
-	finished = QtCore.pyqtSignal(int)
-	error = QtCore.pyqtSignal(tuple)
-	result = QtCore.pyqtSignal(str)
-	progress = QtCore.pyqtSignal(str)
-	start = QtCore.pyqtSignal(str)
-
-# www.pyshine.com
-class VicunaWorker(QtCore.QRunnable):
-
-	def __init__(self, ttt_model, query, *args, **kwargs):
-		super(VicunaWorker, self).__init__()
-		self.ttt_model = ttt_model
-		self.query = query
-		self.args = args
-		self.kwargs = kwargs
-		self.signals = VicunaSignals()
-
-	@pyqtSlot()
-	def run(self):
-		self.signals.start.emit("BOT Status:   Querying  ... ")
-		# Retrieve args/kwargs here; and fire processing using them
-		try:
-			for outputs in self.ttt_model.run(self.query):
-				self.signals.progress.emit(outputs)
-		except:
-			traceback.print_exc()
-			exctype, value = sys.exc_info()[:2]
-			# self.signals.error.emit((exctype, value, traceback.format_exc()))
-			self.signals.finished.emit(0)
-		else:
-			# self.signals.result.emit(1)  # Return the result of the processing
-			self.signals.finished.emit(1)
-		# finally:
-		# 	self.signals.finished.emit()  # Done
-
-
-
-class TTSSignals(QtCore.QObject):
-	finished = QtCore.pyqtSignal()
-	update_plot = QtCore.pyqtSignal(bytes)
-	start = QtCore.pyqtSignal(str)
-	waiting = QtCore.pyqtSignal()
-	init = QtCore.pyqtSignal()
-
-# www.pyshine.com
-class TTSWorker(QtCore.QRunnable):
-
-	def __init__(self, tts_model, txt_queue, running=True, *args, **kwargs):
-		super(TTSWorker, self).__init__()
-		self.tts_model = tts_model
-		self.txt_queue = txt_queue
-		self.running = running
-		self.waiting = False
-		self.args = args
-		self.kwargs = kwargs
-		self.signals = TTSSignals()
-		self.init = True
-	
-	def generate_audio(self, progress):
-		return self.tts_model.run_ex(progress)
-	
-	@pyqtSlot()
-	def run(self):
-		self.signals.start.emit("BOT Status:   GENERATING  ... ")
-		while self.running:
-			try:
-				if not self.txt_queue.empty():
-					result = self.generate_audio(progress = self.txt_queue.get_nowait())
-					print("done\n\n")
-					self.signals.update_plot.emit(result.tobytes())
-			except:
-				pass
-			
-			if self.init:
-				self.signals.start.emit("BOT Status:   IDLE  ... ")
-				self.signals.init.emit()
-				self.init = False
-		self.signals.finished.emit()
-	
-	def stop_running(self):
-		self.running=False
 		
 
 def main():
 	params = {
 	"CHUNK": 2048,
-	"stt_model" : WhisperLargeV2(),
-	"ttt_model" : FastChatModel(),
-	"tts_model" : Bark(voice_preset = "v2/de_speaker_5"),
+	# "stt_model" : WhisperLargeV2(),
+	# "ttt_model" : FastChatModel(),
+	# "tts_model" : Bark(voice_preset = "v2/de_speaker_5"),
 	"welcome_message" : "Hallo, Ich heiße Vicuna, wie kann ich dir helfen?",
 	}
 	app = QtWidgets.QApplication(sys.argv)
@@ -497,8 +531,7 @@ def main():
 	app.setStyleSheet(stream.readAll())
 	# code goes here
 	mainWindow = PyShine_LIVE_PLOT_APP(params=params)
-	mainWindow.showMaximized() 
-
+	mainWindow.showMaximized()
 	app.exec_()
 
 
