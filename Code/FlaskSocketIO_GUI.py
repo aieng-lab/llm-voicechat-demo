@@ -34,7 +34,6 @@ from functools import cached_property
 
 
 
-
 class MplCanvas(FigureCanvas):
 	def __init__(self, parent=None, width=5, height=4, dpi=100):
 		fig = Figure(figsize=(width, height), dpi=dpi, facecolor='black')
@@ -79,6 +78,7 @@ class AudioOutputWorker(QtCore.QRunnable):
         self.active = True
         self.idle = True
         self.should_wait = True
+        self.speaking = True
         self.CHUNK = CHUNK
         self.args = args
         self.kwargs = kwargs
@@ -92,7 +92,7 @@ class AudioOutputWorker(QtCore.QRunnable):
                     self.signals.status.emit("BOT Status:   SPEAKING  ... ")	
                     self.function(*self.args, **self.kwargs)
                 else:
-                    if not self.should_wait:
+                    if not self.should_wait and not self.speaking:
                         self.signals.status.emit("BOT Status:   WAITING  ... ")
                         print("######### I'm waiting #########\n")
                         self.signals.waiting.emit()
@@ -109,9 +109,10 @@ class AudioOutputWorker(QtCore.QRunnable):
         self.idle = False
 
 class APISignals(QtCore.QObject):
-	start = QtCore.pyqtSignal(str)
-	finished = QtCore.pyqtSignal()
-	result = QtCore.pyqtSignal(bytes)
+    start = QtCore.pyqtSignal(str)
+    finished = QtCore.pyqtSignal()
+    result = QtCore.pyqtSignal(bytes)
+    # result = QtCore.pyqtSignal(str)
 
 # www.pyshine.com
 class APIWorker(QtCore.QRunnable):
@@ -132,9 +133,7 @@ class APIWorker(QtCore.QRunnable):
             print("Microphone is listening ... \n")
             self.signals.start.emit("BOT Status:   lISTENING  ... ")
             audio = self.r.listen(source)
-            url = "http://localhost:5000/"
             self.signals.start.emit("BOT Status:   PROCESSING  ... ")
-            print("Request is sent ... \n")
             self.signals.result.emit(audio.get_flac_data())
             self.signals.finished.emit()	
             
@@ -175,16 +174,16 @@ class Client(QtCore.QObject):
     @cached_property
     def sio(self):
         return socketio.AsyncClient(
-            reconnection=True,
-            reconnection_attempts=3,
-            reconnection_delay=5,
-            reconnection_delay_max=5,
-            logger=True,
+            # reconnection=True,
+            # reconnection_attempts=3,
+            # reconnection_delay=5,
+            # reconnection_delay_max=5,
+            # logger=True,
         )
 
     async def start(self):
-        # await self.sio.connect(url="http://127.0.0.1:8080", transports="polling")
-        await self.sio.connect(url="http://127.0.0.1:8080", transports="websocket")
+        await self.sio.connect(url="http://127.0.0.1:5000", transports="polling")
+        # await self.sio.connect(url="http://127.0.0.1:8080", transports="websocket")
         # await self.sio.emit('/my_adsf_event', data={"recorded": "hello"})
         await self.sio.wait()
 
@@ -203,6 +202,7 @@ class Client(QtCore.QObject):
 
     def receiveAudio(self, data):
         print("receiveAudio was reached")
+        # print(data)
         self.data_changed.emit(data["voice_answer"])
     
     def endReceiving(self):
@@ -211,26 +211,34 @@ class Client(QtCore.QObject):
 
     async def receiveFromGUI(self, data):
         # print("here", data)
-        await self.sio.emit('my_adsf_event', data={"recorded": "hello"})
+        # data = "Hallo Vikuna, ich heiße Salim. Wie geht's dir?"
+        request = {"recorded": data,
+                "start_time":time.time(),
+                "request_length": len(data)}
+        await self.sio.emit('request', data=request)
         # await self.sio.send(data={"recorded": "hello"})
         print("Request was sent")
+
+    async def reset(self):
+        await self.sio.emit('reset')
 
 
 class GUISignals(QtCore.QObject):
     request = QtCore.pyqtSignal()
 
-class PyShine_LIVE_PLOT_APP(QtWidgets.QMainWindow):
+class MainUI(QtWidgets.QMainWindow):
     def __init__(self, params):
         print("Initializing ... \n")
         QtWidgets.QMainWindow.__init__(self)
         self.ui = uic.loadUi('main.ui',self)
         self.resize(888, 600)
         icon = QtGui.QIcon()
-        icon.addPixmap(QtGui.QPixmap("PyShine.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        # icon.addPixmap(QtGui.QPixmap("PyShine.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.setWindowIcon(icon)
         self.threadpool = QtCore.QThreadPool()
         self.client_pool = QtCore.QThreadPool()		
         self.API_pool = QtCore.QThreadPool()
+        self.stt_model = WhisperLargeV2(device="cpu")
         self.params = params
         self.CHUNK = self.params["CHUNK"]
         
@@ -257,8 +265,9 @@ class PyShine_LIVE_PLOT_APP(QtWidgets.QMainWindow):
         self.plotting = True
         self.stopped = False
         self.speaking_allowed =True
-        self.pushButton_2.setEnabled(False)
-        self.pushButton.setEnabled(False)
+        self.stopButton.setEnabled(False)
+        self.startButton.setEnabled(False)
+        self.resetButton.setEnabled(False)
         
         self.status_worker = None
         self.r = sr.Recognizer()
@@ -266,29 +275,53 @@ class PyShine_LIVE_PLOT_APP(QtWidgets.QMainWindow):
         
         self.speaker_worker = AudioOutputWorker(function=self.getAudio, audio_queue=self.audio_queue, CHUNK=self.CHUNK)
         self.speaker_worker.signals.waiting.connect(self.startAPIWorker)
+        # self.speaker_worker.signals.waiting.connect(self.request)
         self.speaker_worker.signals.status.connect(self.updateStatus)
         self.threadpool.start(self.speaker_worker)
         self.init = True
         self.client = Client()
         self.signals = GUISignals()
-        self.start()
-        self.pushButton_2.clicked.connect(self.stopWorkers)
-        self.pushButton.clicked.connect(self.startSpeakerWorker)
+
+        
+        # self.start()
+        
+        self.stopButton.clicked.connect(self.stopWorkers)
+        self.startButton.clicked.connect(self.start)
+        self.resetButton.clicked.connect(self.reset)
+
+        self.stopButton.setEnabled(True)
+        self.startButton.setEnabled(True)
+        self.resetButton.setEnabled(True)
         
                     
-        
+
+    def reset(self):
+        if self.stopped:
+            # asyncio.run(self.client.reset())
+            self.plot_queue = queue.Queue(maxsize=self.CHUNK)
+            self.audio_queue = queue.Queue()
+            self.plotdata =  np.zeros((self.length,len(self.channels)))
+            self.record_allowed = True
+            self.plotting = True
+            self.stopped = False
+            self.speaking_allowed =True
+            wf = wave.open("welcome_message_2.wav")
+            data = wf.readframes(-1)
+            self.audio_queue.put_nowait(data)
+            self.displayStatus("BOT Status:   IDLE  ... ")
+        else:
+            print("You need to stop the process first.")
     
     def start(self):
-        wf = wave.open("welcome_message.wav")
+        wf = wave.open("welcome_message_2.wav")
         data = wf.readframes(-1)
         self.audio_queue.put_nowait(data)
         print("Initialiazing is finished.\n")
-        self.pushButton_2.setEnabled(True)
-        self.pushButton.setEnabled(True)
         client_worker = ClientWorker(self.client)
         self.client.data_changed.connect(self.updateAudioQueue)
         self.client.end_receive.connect(self.startSpeakerWorker)
         self.client_pool.start(client_worker)
+        self.startSpeakerWorker()
     
     def displayStatus(self, text):
         self.label_6.setText(text)
@@ -305,8 +338,39 @@ class PyShine_LIVE_PLOT_APP(QtWidgets.QMainWindow):
         # api_worker.signals.finished.connect(self.startSpeakerWorker)
         self.threadpool.start(api_worker)
 
+    # def request(self):
+    #     self.init=False
+    #     with sr.Microphone() as source:
+    #         print("Microphone is started ... \n")
+    #         self.r.adjust_for_ambient_noise(source)
+    #         print("Microphone is listening ... \n")
+    #         # self.updateStatus("BOT Status:   lISTENING  ... ")
+    #         audio = self.r.listen(source)
+    #         # self.updateStatus("BOT Status:   PROCESSING  ... ")
+    #         # self.signals.result.emit(audio.get_flac_data())
+    #         print("To Transcribion")
+    #         transcribtion = self.stt_model.run(audio.get_flac_data())
+    #         print(transcribtion)
+
+    #     asyncio.run(self.client.receiveFromGUI(transcribtion))
+    
     def request(self, data):
-        asyncio.run(self.client.receiveFromGUI(data))
+        url = "http://localhost:5000/request"
+        # print(data)
+        # dict_data = {"recorded": data.decode('latin-1').replace("'", '"'),
+        #         "start_time":time.time(),
+        #         "request_length": len(data)}
+        
+        # dict_data = {"recorded": "data",
+        #         "start_time":"time.time()",
+        #         "request_length": "len(data)"}
+        starting_time = time.time()
+        print("here")
+        response = requests.get(url, data=data)
+        import json
+        a= response.content
+        response_time = json.loads(a.decode('utf-8'))
+        print(response_time["response"] - starting_time)
     
     def getAudio(self):
         if not self.audio_queue.empty():
@@ -386,6 +450,7 @@ class PyShine_LIVE_PLOT_APP(QtWidgets.QMainWindow):
             audio_normalised = self.plot_queue.get_nowait()
             return audio_normalised
         else:
+            self.speaker_worker.speaking=False
             return np.zeros((self.CHUNK,len(self.channels)))
     
     def startSpeakerWorker(self):
@@ -442,7 +507,6 @@ class PyShine_LIVE_PLOT_APP(QtWidgets.QMainWindow):
 def main():
     params = {
 	"CHUNK": 1024,
-	"welcome_message" : "Hallo, Ich heiße Vicuna, wie kann ich dir helfen?",
     "samplerate": 24000
 	}
     app = QtWidgets.QApplication(sys.argv)
@@ -450,7 +514,7 @@ def main():
     file.open(QFile.ReadOnly | QFile.Text)
     stream = QTextStream(file)
     app.setStyleSheet(stream.readAll())
-    mainWindow = PyShine_LIVE_PLOT_APP(params=params)
+    mainWindow = MainUI(params=params)
     mainWindow.showMaximized()
     app.exec_()
 

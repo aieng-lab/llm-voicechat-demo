@@ -16,6 +16,8 @@ from transformers import WhisperProcessor
 from optimum.bettertransformer import BetterTransformer
 from datasets import load_dataset
 import numpy as np
+from TTS.api import TTS
+import sys
 
 
 
@@ -378,7 +380,7 @@ class WhisperLargeV2(WhisperModel):
         run: record a speech using the microphone then convert and return it as text.
     ----------
     """    
-    def __init__(self):
+    def __init__(self, device=None):
         """
         ----------
         Parameters: None
@@ -388,8 +390,13 @@ class WhisperLargeV2(WhisperModel):
         ----------
         """
         super().__init__()
-        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        if device is None:
+            self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = device
         self.torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+
+        self.torch_dtype = torch.float16 if device=="cuda:0" else torch.float32
         
 
         self.model_id = "openai/whisper-large-v2"
@@ -418,28 +425,31 @@ class WhisperLargeV2(WhisperModel):
             device=self.device,
         )
 
-    def run(self)-> str:
-        """ Record a speech using the microphone then convert and return it as text.
-        ----------
-        Parameters: None
+    # def run(self)-> str:
+    #     """ Record a speech using the microphone then convert and return it as text.
+    #     ----------
+    #     Parameters: None
       
-        ----------
-        Return: 
-            text:str, the converted text from the recorded speech
-        ----------
-        """
-        print("stt_model hase been reached ...\n")
-        with sr.Microphone() as source:
-            print("Microphone is started ... \n")
-            self.r.adjust_for_ambient_noise(source)
-            print("Microphone is listening ... \n")
-            audio = self.r.listen(source)
-            print("Microphone is recognizing ... \n")
-            audio_data = audio.get_flac_data()
-            text=self.p(audio_data, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
-            # text = "Hallo Vicuna, kannst du mir eine kurze Geschichte erzählen?"
-        return text
-        # return super().run()          
+    #     ----------
+    #     Return: 
+    #         text:str, the converted text from the recorded speech
+    #     ----------
+    #     """
+    #     print("stt_model hase been reached ...\n")
+    #     with sr.Microphone() as source:
+    #         print("Microphone is started ... \n")
+    #         self.r.adjust_for_ambient_noise(source)
+    #         print("Microphone is listening ... \n")
+    #         audio = self.r.listen(source)
+    #         print("Microphone is recognizing ... \n")
+    #         audio_data = audio.get_flac_data()
+    #         text=self.p(audio_data, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
+    #         # text = "Hallo Vicuna, kannst du mir eine kurze Geschichte erzählen?"
+    #     return text
+    #     # return super().run()
+
+    def run(self, audio):
+        return self.p(audio, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
 
     def run_gradio(self, audio):
         """ Convert audio data recorded with a gradio microphone to text.
@@ -510,6 +520,8 @@ class FastChatModel(TTTStrategy):
         self.model, self.tokenizer = self.load_model(self.args.model_name, self.args.device, self.args.num_gpus, self.args.load_8bit)
         # Chat
         self.conv = conv_templates[self.args.conv_template].copy()
+        self.welcome_message = "Hallo, Ich heiße Vicuna, wie kann ich dir helfen?"
+        self.conv.append_message(self.conv.roles[1], self.welcome_message)
 
     
     def load_model(self, model_name, device, num_gpus=1, load_8bit=True):
@@ -656,13 +668,15 @@ class FastChatModel(TTTStrategy):
                 outputs = outputs[len(prompt):].strip()
             else:
                 outputs = outputs[len(prompt) + len(yielded_output) + 1:].strip()
-            if outputs.endswith(('.', '?', '!', ',', ':')):
-                yielded_output+= " " + outputs
+            if outputs.endswith(('.', '?', '!', ':')):
+                yielded_output+= outputs + " "
                 yield outputs
         yield "END"
+        self.conv.messages[-1][-1] = yielded_output.strip()
     
     def clear_history(self):
         self.conv.messages.clear()
+        self.conv.append_message(self.conv.roles[1], self.welcome_message)
     
     def clear_cache(self):
         del self.model
@@ -893,6 +907,41 @@ class Espnet(TTSStrategy):
 		
 
 
+class BarkSmall(TTSStrategy):
+    """
+    ----------
+    Attributes: None
+
+    ----------
+    Functions:
+        run(): 
+    ----------
+    """
+
+    def __init__(self, voice_preset = "v2/de_speaker_5") -> None:
+        super().__init__()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        self.model = BarkModel.from_pretrained("suno/bark-small", torch_dtype=torch.float16).to(self.device)
+        # self.model = BarkModel.from_pretrained("suno/bark-small", torch_dtype=torch.float16, use_flash_attention_2=True).to(self.device)
+
+        self.processor = AutoProcessor.from_pretrained("suno/bark-small")
+
+        self.voice_preset = voice_preset
+
+
+    def run(self, text:str, filepath:str = "text_to_speech.wav"):
+        
+        inputs = self.processor(text, voice_preset=self.voice_preset).to(self.device)
+        print("Generating started \n")
+        audio_array = self.model.generate(**inputs)
+        print("Generating finished\n")
+        sampling_rate = self.model.generation_config.sample_rate
+        data = audio_array.cpu().numpy().squeeze()
+        data = data.astype(np.float32)
+        # sf.write(filepath, data, samplerate=sampling_rate)
+        return data
+
 class Bark(TTSStrategy):
     """
     ----------
@@ -910,18 +959,12 @@ class Bark(TTSStrategy):
 
         self.model = BarkModel.from_pretrained("suno/bark", torch_dtype=torch.float16).to(self.device)
 
-        # convert to bettertransformer
-        self.model = BetterTransformer.transform(self.model, keep_original_model=False)
-
-        # enable CPU offload
-        self.model.enable_cpu_offload()
-
         self.processor = AutoProcessor.from_pretrained("suno/bark")
 
         self.voice_preset = voice_preset
 
 
-    def run_ex(self, text:str, filepath:str = "text_to_speech.wav"):
+    def run(self, text:str, filepath:str = "text_to_speech.wav"):
         
         inputs = self.processor(text, voice_preset=self.voice_preset).to(self.device)
         print("Generating started \n")
@@ -933,41 +976,39 @@ class Bark(TTSStrategy):
         # sf.write(filepath, data, samplerate=sampling_rate)
         # return filepath
         return data
+
+#"Hallo, da is Salim. Ich komme aus Syrien und bin 28 Jahre alt. Ich mache einen Master in Informatik in Passau. Ich habe im Moment einen Minijob an der Uni. Dabei muss ich ein VoiceBot entwickeln."
     
-    def run_untitled(self, text:str, filepath:str = "text_to_speech.wav"):
-        
-        inputs = self.processor(text, voice_preset=self.voice_preset).to(self.device)
-        audio_array = self.model.generate(**inputs)
-        sampling_rate = self.model.generation_config.sample_rate
-        data = audio_array.cpu().numpy().squeeze()
-        data = data.astype(np.float32)
-        # sf.write(filepath, data, samplerate=sampling_rate)
-        # return filepath
-        return data, sampling_rate
-    
+
+
+class XTTS_V2(TTSStrategy):
+    """
+    ----------
+    Attributes: None
+
+    ----------
+    Functions:
+        run(): 
+    ----------
+    """
+
+    def __init__(self, speaker:str = "welcome_message.wav") -> None:
+        super().__init__()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        # self.model = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(self.device)
+        self.model = TTS("tts_models/de/thorsten/vits").to('cuda:0')
+
+        self.voice_preset = speaker
+
+
 
     def run(self, text:str, filepath:str = "text_to_speech.wav"):
         
-        inputs = self.processor(text, voice_preset=self.voice_preset).to(self.device)
-        audio_array = self.model.generate(**inputs)
-        sampling_rate = self.model.generation_config.sample_rate
-        data = audio_array.cpu().numpy().squeeze()
-        data = data.astype(np.float32)
-        sf.write(filepath, data, samplerate=sampling_rate)
-        return filepath
-    
-    def run_ex_2(self, text:str, filepath:str = "text_to_speech.wav"):
-        out_data = np.zeros(shape=(1,1), dtype=np.float32)
-        for i in range(len(text)):
-            print("Phrase {}/{} is fetched\n".format(i+1, len(text)))
-            inputs = self.processor(text[i], voice_preset=self.voice_preset).to(self.device)
-            audio_array = self.model.generate(**inputs)
-            sampling_rate = self.model.generation_config.sample_rate
-            data = audio_array.cpu().numpy().squeeze()
-            data = data.astype(np.float32)
-            out_data = np.concatenate((out_data, data), axis=None)
-            print("Phrase {}/{} is done\n".format(i+1, len(text)))
-        sf.write(filepath, out_data, samplerate=sampling_rate)
-        return filepath
-
-#"Hallo, da is Salim. Ich komme aus Syrien und bin 28 Jahre alt. Ich mache einen Master in Informatik in Passau. Ich habe im Moment einen Minijob an der Uni. Dabei muss ich ein VoiceBot entwickeln."
+        print("Generating started \n")
+        # audio_list = self.model.tts(text=text, speaker_wav=self.voice_preset, language="de")
+        audio_list = self.model.tts(text=text, speaker_wav=self.voice_preset)
+        data = np.asarray(audio_list, dtype=np.float32)
+        print("Generating finished\n")
+        # sf.write(filepath, data, samplerate=sampling_rate)
+        return data
