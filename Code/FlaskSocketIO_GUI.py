@@ -21,18 +21,20 @@ import librosa
 import soundfile as sf
 import BreezeStyleSheets.breeze_resources
 from Models import *
-import debugpy
+# import debugpy
 import requests
 import json
 import socketio
 import pickle
 import struct
 import asyncio
-from asyncqt import QEventLoop
+# from asyncqt import QEventLoop
 
 from functools import cached_property
 
 
+main_path = "/home/sfares/Local_Project/Code/"
+logs_path = main_path + "logs/"
 
 class MplCanvas(FigureCanvas):
 	def __init__(self, parent=None, width=5, height=4, dpi=100):
@@ -160,6 +162,7 @@ class Client(QtCore.QObject):
     error_ocurred = QtCore.pyqtSignal(object, name="errorOcurred")
     data_changed = QtCore.pyqtSignal(bytes, name="dataChanged")
     end_receive = QtCore.pyqtSignal()
+    recorded_times = QtCore.pyqtSignal(bytes)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -205,9 +208,10 @@ class Client(QtCore.QObject):
         # print(data)
         self.data_changed.emit(data["voice_answer"])
     
-    def endReceiving(self):
+    def endReceiving(self, logs_bytes):
         print("endReceiving was reached")
         self.end_receive.emit()
+        self.recorded_times.emit(logs_bytes)
 
     async def receiveFromGUI(self, data):
         # print("here", data)
@@ -281,6 +285,7 @@ class MainUI(QtWidgets.QMainWindow):
         self.init = True
         self.client = Client()
         self.signals = GUISignals()
+        self.logs={}
 
         
         # self.start()
@@ -320,6 +325,7 @@ class MainUI(QtWidgets.QMainWindow):
         client_worker = ClientWorker(self.client)
         self.client.data_changed.connect(self.updateAudioQueue)
         self.client.end_receive.connect(self.startSpeakerWorker)
+        self.client.recorded_times.connect(self.saveLogs)
         self.client_pool.start(client_worker)
         self.startSpeakerWorker()
     
@@ -365,13 +371,24 @@ class MainUI(QtWidgets.QMainWindow):
         #         "start_time":"time.time()",
         #         "request_length": "len(data)"}
         starting_time = time.time()
-        print("here")
+        print("Request is sent.\n")
         response = requests.get(url, data=data)
-        import json
+    
         a= response.content
         response_time = json.loads(a.decode('utf-8'))
-        print(response_time["response"] - starting_time)
+        self.logs["sending_time"] = response_time["response"] - starting_time
     
+    def saveLogs(self, logs_bytes):
+        self.logs = self.logs | json.loads(logs_bytes.decode('utf-8'))
+        self.logs["first_response"] = self.logs["first_response"] + self.logs["sending_time"] * 2
+        self.logs["total_time"] = self.logs["total_time"] + self.logs["sending_time"] * 2
+        for dirname, _, filenames in os.walk(logs_path):
+            file_name = "time_logs_{}.json".format(len(filenames))
+            file_path = os.path.join(dirname, file_name)
+            with open(file_path, "w") as file:
+                json.dump(self.logs, file)
+                print(file_path)
+
     def getAudio(self):
         if not self.audio_queue.empty():
             print("Getting Audio\n")

@@ -49,26 +49,33 @@ def reset(sid):
     
 
 def generateAnswer(voice_request):
+    first_response = True
+    logs = {}
+    start_time = time.time()
+    current_time = start_time
     print("########### generating ###########")
     transcribtion = stt_model.run(voice_request)
-    # transcribtion_time = time.time() - current_time
+    transcribtion_time = time.time() - current_time
     print(transcribtion)
     # print(voice_query)
     entry = ""
     response = []
     ttt_times = []
     tts_times = []
-    # current_time = time.time()
+    current_time = time.time()
     for out in ttt_model.run(transcribtion.strip()):
-    # for out in ttt_model.run(voice_query.strip()):
-        # ttt_times.append(time.time()-current_time)
+        ttt_times.append(time.time()-current_time)
         if out == "END":
             print("\n##############\n")
             print(entry)
             print("\n##############\n")
-            # current_time = time.time()
+            current_time = time.time()
+
             voice_answer = tts_model.run(entry)
-            # tts_times.append(time.time()-current_time)
+            tts_times.append(time.time()-current_time)
+            if first_response:
+                logs["first_response"] = sum(ttt_times) + sum(tts_times)
+                first_response = False
             b_answer = voice_answer.tobytes()
             response.append(entry)
             # jdata = json.dumps(data)
@@ -79,9 +86,15 @@ def generateAnswer(voice_request):
                 print("\n##############\n")
                 print(entry)
                 print("\n##############\n")
-                # current_time = time.time()
+                current_time = time.time()
+
                 voice_answer = tts_model.run(entry)
-                # tts_times.append(time.time()-current_time)
+                tts_times.append(time.time()-current_time)
+                
+                if first_response:
+                    logs["first_response"] = sum(ttt_times) + sum(tts_times)
+                    first_response = False
+                    
                 b_answer = voice_answer.tobytes()
                 data = {"voice_answer": b_answer}
                 # jdata = json.dumps(data)
@@ -91,8 +104,14 @@ def generateAnswer(voice_request):
                 sio.emit("voice reply", data)
             else:
                 entry += out + " "
-        
-    sio.emit("request")
+        current_time = time.time()    
+    
+    logs["stt_time"] = transcribtion_time
+    logs["ttt_times"] = ttt_times
+    logs["tts_times"] = tts_times
+    logs["total_time"] = time.time() - start_time
+    logs_bytes = json.dumps(logs, indent=2).encode('utf-8')
+    sio.emit("request", data = logs_bytes)
 
 @app.route("/request", methods=["POST", "GET"])
 def receive():
@@ -103,7 +122,7 @@ def receive():
     # json_data = json.loads(to_json)
     # voice_query = json_data["recorded"]
     voice_query = bytes_data
-    # print(time.time()-json_data["start_time"])
+    # print(time.time()-json_data["start_time"])json.loads(logs_bytes.decode('utf-8'))
     t = threading.Thread(target=generateAnswer, daemon=True, args=[voice_query])
     t.start()
     return {"response": received_time}

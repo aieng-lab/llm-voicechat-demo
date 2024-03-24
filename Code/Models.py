@@ -11,9 +11,9 @@ import argparse
 from fastchat.conversation import conv_templates, SeparatorStyle
 from datasets import load_dataset
 import soundfile as sf
-from espnet2.bin.tts_inference import Text2Speech
+# from espnet2.bin.tts_inference import Text2Speech
 from transformers import WhisperProcessor
-from optimum.bettertransformer import BetterTransformer
+# from optimum.bettertransformer import BetterTransformer
 from datasets import load_dataset
 import numpy as np
 from TTS.api import TTS
@@ -641,7 +641,7 @@ class FastChatModel(TTTStrategy):
         #new
         outputs = self.generate_stream(self.tokenizer, self.model, params, self.args.device)
         for output in outputs:
-            output = output[len(prompt) + 1:].strip()
+            output = output[len(prompt)-3:].strip()
             output = output.split(" ")
             now = len(output)
             if now - 1 > pre:
@@ -661,14 +661,16 @@ class FastChatModel(TTTStrategy):
         "max_new_tokens": self.args.max_new_tokens,
         "stop": self.conv.sep if self.conv.sep_style == SeparatorStyle.ADD_COLON_SINGLE else self.conv.sep2,
         }
-
+        # print(prompt)
         yielded_output = ""
         for outputs in self.generate_stream(self.tokenizer, self.model, params, self.args.device):
-            if len(yielded_output) == 0:
-                outputs = outputs[len(prompt):].strip()
-            else:
-                outputs = outputs[len(prompt) + len(yielded_output) + 1:].strip()
             if outputs.endswith(('.', '?', '!', ':')):
+                
+                if len(yielded_output) == 0:
+                    outputs = outputs[len(prompt)-3:].strip()
+                else:
+                    outputs = outputs[len(prompt) + len(yielded_output) -3:].strip()
+                
                 yielded_output+= outputs + " "
                 yield outputs
         yield "END"
@@ -880,30 +882,30 @@ class SpeechT5(TTSStrategy):
         return filepath
 		
 
-class Espnet(TTSStrategy):
-    """
-    ----------
-    Attributes: None
+# class Espnet(TTSStrategy):
+#     """
+#     ----------
+#     Attributes: None
 
-    ----------
-    Functions:
-        run(): 
-    ----------
-    """
+#     ----------
+#     Functions:
+#         run(): 
+#     ----------
+#     """
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.model = Text2Speech.from_pretrained("espnet/kan-bayashi_ljspeech_vits")
+#     def __init__(self) -> None:
+#         super().__init__()
+#         self.model = Text2Speech.from_pretrained("espnet/kan-bayashi_ljspeech_vits")
 
-    def run(self, text:str, filepath:str = "/text_to_speech.wav"):
-        speech = self.model(text)
+#     def run(self, text:str, filepath:str = "/text_to_speech.wav"):
+#         speech = self.model(text)
         
-        sf.write(filepath, speech['wav'].numpy(), samplerate=16000)
-        return filepath
+#         sf.write(filepath, speech['wav'].numpy(), samplerate=16000)
+#         return filepath
     
-    def run(self, text:str, filepath:str = "/text_to_speech.wav"):
-        speech = self.model(text)
-        return speech['wav'].numpy().astype(np.float32)
+#     def run(self, text:str, filepath:str = "/text_to_speech.wav"):
+#         speech = self.model(text)
+#         return speech['wav'].numpy().astype(np.float32)
 		
 
 
@@ -992,7 +994,7 @@ class XTTS_V2(TTSStrategy):
     ----------
     """
 
-    def __init__(self, speaker:str = "welcome_message.wav") -> None:
+    def __init__(self, speaker:str = "welcome_message_2.wav") -> None:
         super().__init__()
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
