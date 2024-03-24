@@ -1,4 +1,4 @@
-name: myenv
+name: galadriel
 channels:
   - defaults
 dependencies:
