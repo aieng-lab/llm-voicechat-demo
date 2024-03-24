@@ -33,8 +33,11 @@ import asyncio
 from functools import cached_property
 
 
-main_path = "/home/sfares/Local_Project/Code/"
-logs_path = main_path + "logs/"
+main_path = os.path.dirname(os.path.realpath(__file__))
+logs_path = main_path + "/logs/"
+
+if not os.path.exists(logs_path):
+    os.makedirs(logs_path)
 
 class MplCanvas(FigureCanvas):
 	def __init__(self, parent=None, width=5, height=4, dpi=100):
@@ -234,7 +237,7 @@ class MainUI(QtWidgets.QMainWindow):
     def __init__(self, params):
         print("Initializing ... \n")
         QtWidgets.QMainWindow.__init__(self)
-        self.ui = uic.loadUi('main.ui',self)
+        self.ui = uic.loadUi(main_path+'/main.ui',self)
         self.resize(888, 600)
         icon = QtGui.QIcon()
         # icon.addPixmap(QtGui.QPixmap("PyShine.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
@@ -382,6 +385,7 @@ class MainUI(QtWidgets.QMainWindow):
         self.logs = self.logs | json.loads(logs_bytes.decode('utf-8'))
         self.logs["first_response"] = self.logs["first_response"] + self.logs["sending_time"] * 2
         self.logs["total_time"] = self.logs["total_time"] + self.logs["sending_time"] * 2
+
         for dirname, _, filenames in os.walk(logs_path):
             file_name = "time_logs_{}.json".format(len(filenames))
             file_path = os.path.join(dirname, file_name)

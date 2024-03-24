@@ -7,8 +7,12 @@ from flask import Flask, request
 from flask_socketio import SocketIO, send, emit
 import threading
 
-main_path = "/home/sfares/Local_Project/Code/"
-logs_path = main_path + "logs/"
+main_path = os.path.dirname(os.path.realpath(__file__))
+logs_path = main_path + "/logs/"
+
+if not os.path.exists(logs_path):
+    os.makedirs(logs_path)
+    
 tts_model = None
 stt_model = None
 ttt_model = None
