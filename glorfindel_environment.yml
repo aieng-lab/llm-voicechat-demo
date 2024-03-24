@@ -1,4 +1,4 @@
-name: myenv
+name: glorfindel
 channels:
   - defaults
 dependencies:
