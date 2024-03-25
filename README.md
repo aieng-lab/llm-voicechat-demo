@@ -25,11 +25,11 @@ git clone https://github.com/Alexhuszagh/BreezeStyleSheets.git
    python3.9.18 -m venv voicebot
    ```
    
-5. Install the required libraries:
+4. Install the required libraries:
 ```
 pip install -r requirements.txt
 ```
-6. You need two terminal windows at llm-voicechat-demo/Code
+5. You need two terminal windows at llm-voicechat-demo/Code
     - In the first terminal run:
     ```
     python FlaskSocketIO_backend.py
@@ -39,11 +39,11 @@ pip install -r requirements.txt
     python FlaskSocketIO_GUI.py
     ```
 
-If BreezeStyleSheets doesn't work, then you need to setup its configuration:
+If BreezeStyleSheets doesn't work, then it needs to be configured:
    ```
    cd BreezeStyleSheets
    python configure.py --compiled-resource breeze_resources.py
    cd ..
    ```
-Then run 6.
+Then run 5.
 
