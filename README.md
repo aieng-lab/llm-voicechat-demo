@@ -14,13 +14,13 @@ git clone https://github.com/Alexhuszagh/BreezeStyleSheets.git
 ```
 
 5. create a virtual enviroment:
-   A. Using conda:
+   - A. Using conda:
    ```
    conda create --name voicebot python==3.9.18
    conda activate voicebot
    ```
    
-   B. Using Python vitualenv: 
+   - B. Using Python vitualenv: 
    ```
    python3.9.18 -m venv voiceboty
    ```
