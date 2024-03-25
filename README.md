@@ -11,7 +11,7 @@ git clone https://github.com/aieng-lab/llm-voicechat-demo.git
 
 2. Clone BreezeStyleSheets into project directory:
 ```
-cd Code
+cd llm-voicechat-demo/Code
 git clone https://github.com/Alexhuszagh/BreezeStyleSheets.git
 ```
 
