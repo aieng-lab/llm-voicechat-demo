@@ -1,5 +1,7 @@
 # llm-voicechat-demo
 
+# Linux installation
+
 For this project you'll need python 3.9.18.
 
 1. Clone this repository:
@@ -23,6 +25,7 @@ git clone https://github.com/Alexhuszagh/BreezeStyleSheets.git
    - Using Python virtualenv:
    ```
    python3.9.18 -m venv voicebot
+   source voicebot/bin/activate
    ```
    
 4. Install the required libraries:
