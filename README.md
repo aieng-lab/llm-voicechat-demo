@@ -2,11 +2,14 @@
 
 For this project you'll need python 3.9.18.
 
-1. git clone https://github.com/aieng-lab/llm-voicechat-demo.git
-2. cd Code
-3. Git BreezeStyleSheets: git clone https://github.com/Alexhuszagh/BreezeStyleSheets.git
+1. Clone this repository:
+´´´
+git clone https://github.com/aieng-lab/llm-voicechat-demo.git
+´´
+3. cd Code
+4. Git BreezeStyleSheets: git clone https://github.com/Alexhuszagh/BreezeStyleSheets.git
 
-4. create a virtual enviroment:
+5. create a virtual enviroment:
    A. Using conda:
        - conda create --name voicebot python==3.9.18
        - conda activate voicebot
