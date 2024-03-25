@@ -9,7 +9,7 @@ For this project you'll need python 3.9.18.
 git clone https://github.com/aieng-lab/llm-voicechat-demo.git
 ```
 
-2. Clone BreezeStyleSheets into Code directory:
+2. Clone BreezeStyleSheets into llm-voicechat-demo/Code/ directory:
 ```
 cd llm-voicechat-demo/Code
 git clone https://github.com/Alexhuszagh/BreezeStyleSheets.git
