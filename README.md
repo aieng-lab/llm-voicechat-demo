@@ -9,10 +9,11 @@ For this project you'll need python 3.9.18.
 git clone https://github.com/aieng-lab/llm-voicechat-demo.git
 ```
 
-2. Clone BreezeStyleSheets into project directory:
+2. Clone BreezeStyleSheets into Code directory:
 ```
 cd llm-voicechat-demo/Code
 git clone https://github.com/Alexhuszagh/BreezeStyleSheets.git
+cd ..
 ```
 
 3. create a virtual environment:
@@ -32,7 +33,7 @@ git clone https://github.com/Alexhuszagh/BreezeStyleSheets.git
 ```
 pip install -r requirements.txt
 ```
-5. You need two terminal windows at llm-voicechat-demo/Code
+5. You need two terminal windows at llm-voicechat-demo/Code directory
     - In the first terminal run:
     ```
     python FlaskSocketIO_backend.py
