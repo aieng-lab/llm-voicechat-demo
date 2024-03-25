@@ -13,16 +13,16 @@ cd Code
 git clone https://github.com/Alexhuszagh/BreezeStyleSheets.git
 ```
 
-3. create a virtual enviroment:
+3. create a virtual environment:
    - Using conda:
    ```
    conda create --name voicebot python==3.9.18
    conda activate voicebot
    ```
    
-   - Using Python virtualenv: 
+   - Using Python virtualenv:
    ```
-   python3.9.18 -m venv voiceboty
+   python3.9.18 -m venv voicebot
    ```
    
 4. Build BreezeStyleSheets:
@@ -35,7 +35,7 @@ git clone https://github.com/Alexhuszagh/BreezeStyleSheets.git
 ```
 pip install -r requirements.txt
 ```
-6. You need two terminal windows
+6. You need two terminal windows at llm-voicechat-demo/Code
     - In the first terminal run:
     ```
     python FlaskSocketIO_backend.py
