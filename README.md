@@ -3,9 +3,9 @@
 For this project you'll need python 3.9.18.
 
 1. Clone this repository:
-'''
+```
 git clone https://github.com/aieng-lab/llm-voicechat-demo.git
-'''
+``
 3. cd Code
 4. Git BreezeStyleSheets: git clone https://github.com/Alexhuszagh/BreezeStyleSheets.git
 
