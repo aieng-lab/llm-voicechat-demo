@@ -25,12 +25,6 @@ git clone https://github.com/Alexhuszagh/BreezeStyleSheets.git
    python3.9.18 -m venv voicebot
    ```
    
-4. Build BreezeStyleSheets:
-   ```
-   cd BreezeStyleSheets
-   python configure.py --compiled-resource breeze_resources.py
-   cd ..
-   ```
 5. Install the required libraries:
 ```
 pip install -r requirements.txt
@@ -44,4 +38,12 @@ pip install -r requirements.txt
     ```
     python FlaskSocketIO_GUI.py
     ```
+
+If BreezeStyleSheets doesn't work, then you need to setup its configuration:
+   ```
+   cd BreezeStyleSheets
+   python configure.py --compiled-resource breeze_resources.py
+   cd ..
+   ```
+Then run 6.
 
