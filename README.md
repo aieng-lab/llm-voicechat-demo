@@ -20,7 +20,7 @@ git clone https://github.com/Alexhuszagh/BreezeStyleSheets.git
    conda activate voicebot
    ```
    
-   - Using Python vitualenv: 
+   - Using Python virtualenv: 
    ```
    python3.9.18 -m venv voiceboty
    ```
