@@ -62,12 +62,12 @@ After executing the commands in Step 5, wait until all components are loaded.
 
 "Bot Status" field will show you the current state of the program:
 
-   "INITIALIZING": The program is still loading.
-   "IDLE": The program is initialized, and ready to be started.
-   "SPEAKING": The generated speech is being played and plotted.
-   "WAITING": Waiting on the microphone to record.
-   "LISTENING": The program is ready to record a voice query.
-   "PROCESSING": The query is being processed.
+   . "INITIALIZING": The program is still loading.
+   . "IDLE": The program is initialized, and ready to be started.
+   . "SPEAKING": The generated speech is being played and plotted.
+   . "WAITING": Waiting on the microphone to record.
+   . "LISTENING": The program is ready to record a voice query.
+   . "PROCESSING": The query is being processed.
 
 Once everything is loaded "IDLE", you can start the program by pressing on the "Start" button.
 
