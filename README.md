@@ -69,15 +69,15 @@ After executing the commands in Step 5, wait until all components are loaded.
    - "LISTENING": The program is ready to record a voice query.
    - "PROCESSING": The query is being processed.
 
-Once everything is loaded "IDLE", you can start the program by pressing on the "Start" button.
+- Once everything is loaded "IDLE", you can start the program by pressing on the "Start" button.
 
-The program will not record any sound until "LISTENING" is shown, that's when you can query.
+- The program will not record any sound until "LISTENING" is shown, that's when you can query.
 
-"Stop" button will prevent next steps, but will not terminate the current step of execution.
+- "Stop" button will prevent next steps, but will not terminate the current step of execution.
 
-"Reset" button will reset all parameters and take the program back to "IDLE" state.
+- "Reset" button will reset all parameters and take the program back to "IDLE" state.
 
-Everything must be closed from the terminals (Still working on closing).
+- Everything must be closed from the terminals (Still working on closing).
 
 
 
