@@ -1,6 +1,6 @@
 # llm-voicechat-demo
 
-Installation
+## Installation
 
 For this project you'll need python 3.9.18.
 
@@ -53,7 +53,7 @@ If BreezeStyleSheets doesn't work, then it needs to be configured:
 Then run 5.
 
 
-How to use:
+## How to use:
 
 After executing the commands in Step 5, wait until all components are loaded.
 (Even if the GUI appears, make sure that the FlaskAPI is running, because loading the models takes more time than loading the GUI).
@@ -81,9 +81,10 @@ Everything must be closed from the terminals (Still working on closing).
 
 
 
-Architicture:
+## Architicture:
+\\ Describe the architicture here
 
-How it works:
+## How it works:
 
 The GUI will record, play and plot audio data.
 
@@ -91,9 +92,9 @@ When an audio is recorded, it will be sent to the Flask-SocketIO server (backend
 
 When the backend receives a request, it will process it as follows:
 
-1- Transcribes the audio data using a speech-to-text model (WhisperLargeV2)
-2- Streams generated text using a large language model (FastChat/Vicuna).
-3- Generates speech for each chunk of generated text using text-to-speech model (thorsten/vits from XTT2/Coquit)
+1. Transcribes the audio data using a speech-to-text model (WhisperLargeV2)
+2. Streams generated text using a large language model (FastChat/Vicuna).
+3. Generates speech for each chunk of generated text using text-to-speech model (thorsten/vits from XTT2/Coquit)
 
 
 
