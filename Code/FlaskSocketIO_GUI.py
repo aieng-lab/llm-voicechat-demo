@@ -287,6 +287,7 @@ class MainUI(QtWidgets.QMainWindow):
         self.threadpool.start(self.speaker_worker)
         self.init = True
         self.client = Client()
+        self.client_worker = None
         self.signals = GUISignals()
         self.logs={}
 
@@ -300,36 +301,50 @@ class MainUI(QtWidgets.QMainWindow):
         self.stopButton.setEnabled(True)
         self.startButton.setEnabled(True)
         self.resetButton.setEnabled(True)
+        self.already_reset = False
         
                     
 
     def reset(self):
-        if self.stopped:
-            # asyncio.run(self.client.reset())
-            self.plot_queue = queue.Queue(maxsize=self.CHUNK)
-            self.audio_queue = queue.Queue()
-            self.plotdata =  np.zeros((self.length,len(self.channels)))
-            self.record_allowed = True
-            self.plotting = True
-            self.stopped = False
-            self.speaking_allowed =True
-            wf = wave.open("welcome_message_2.wav")
-            data = wf.readframes(-1)
-            self.audio_queue.put_nowait(data)
-            self.displayStatus("BOT Status:   IDLE  ... ")
+        if not self.already_reset:
+            self.stopped = True
+            self.speaking_allowed = False
+            self.plotting = False
+            self.speaker_worker.stop_running()
+            self.speaker_worker = None
+            print("You have stopped all threads!\n")
+            with self.plot_queue.mutex:
+                self.plot_queue.queue.clear()
+            with self.audio_queue.mutex:
+                self.audio_queue.queue.clear()
+
+            self.already_reset = True
         else:
-            print("You need to stop the process first.")
+            print("Already reset")
     
     def start(self):
         wf = wave.open("welcome_message_2.wav")
         data = wf.readframes(-1)
         self.audio_queue.put_nowait(data)
         print("Initialiazing is finished.\n")
-        client_worker = ClientWorker(self.client)
-        self.client.data_changed.connect(self.updateAudioQueue)
-        self.client.end_receive.connect(self.startSpeakerWorker)
-        self.client.recorded_times.connect(self.saveLogs)
-        self.client_pool.start(client_worker)
+        if self.client_worker is None:
+            self.client_worker = ClientWorker(self.client)
+            self.client.data_changed.connect(self.updateAudioQueue)
+            self.client.end_receive.connect(self.startSpeakerWorker)
+            self.client.recorded_times.connect(self.saveLogs)
+            self.client_pool.start(self.client_worker)
+        
+        if self.speaker_worker is None:
+            self.stopped = False
+            self.speaking_allowed = True
+            self.plotting = True
+            self.speaker_worker = AudioOutputWorker(function=self.getAudio, audio_queue=self.audio_queue, CHUNK=self.CHUNK)
+            self.speaker_worker.signals.waiting.connect(self.startAPIWorker)
+            # self.speaker_worker.signals.waiting.connect(self.request)
+            self.speaker_worker.signals.status.connect(self.updateStatus)
+            self.threadpool.start(self.speaker_worker)
+            self.init = True
+        
         self.startSpeakerWorker()
     
     def displayStatus(self, text):
