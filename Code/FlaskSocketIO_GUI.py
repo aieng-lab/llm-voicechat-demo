@@ -94,11 +94,13 @@ class AudioOutputWorker(QtCore.QRunnable):
         while self.active:
             if not self.idle:
                 if not self.audio_queue.empty():
-                    self.signals.status.emit("BOT Status:   SPEAKING  ... ")	
+                    #BOT Status
+                    self.signals.status.emit("Ich spreche  ... ")	
                     self.function(*self.args, **self.kwargs)
                 else:
                     if not self.should_wait and not self.speaking:
-                        self.signals.status.emit("BOT Status:   WAITING  ... ")
+                        #BOT Status
+                        self.signals.status.emit("Ich spreche  ... ")
                         print("######### I'm waiting #########\n")
                         self.signals.waiting.emit()
                         self.should_wait = True
@@ -136,9 +138,11 @@ class APIWorker(QtCore.QRunnable):
             print("Microphone is started ... \n")
             self.r.adjust_for_ambient_noise(source)
             print("Microphone is listening ... \n")
-            self.signals.start.emit("BOT Status:   lISTENING  ... ")
+            #BOT Status
+            self.signals.start.emit("Ich höre zu  ... ")
             audio = self.r.listen(source)
-            self.signals.start.emit("BOT Status:   PROCESSING  ... ")
+            #BOT Status
+            self.signals.start.emit("Ich überlege was ich antworte  ... ")
             self.signals.result.emit(audio.get_flac_data())
             self.signals.finished.emit()	
             
@@ -152,12 +156,20 @@ class ClientWorker(QtCore.QRunnable):
         self.client = client
         self.args = args
         self.kwargs = kwargs
+        self.loop = None
     
     def run(self):
-        loop = asyncio.new_event_loop()
-        loop.create_task(self.client.start())
-        loop.run_forever()
-
+        if not self.loop is None:
+            self.loop.stop()
+        self.loop = asyncio.new_event_loop()
+        self.loop.create_task(self.client.start())
+        self.loop.run_forever()
+    
+    def stop(self):
+        self.loop.shutdown_asyncgens()
+        self.loop.stop()
+        self.loop.close()
+        self.loop.run_until_complete(self.client.disconnect())
 
 class Client(QtCore.QObject):
     connected = QtCore.pyqtSignal()
@@ -192,7 +204,10 @@ class Client(QtCore.QObject):
         # await self.sio.connect(url="http://127.0.0.1:8080", transports="websocket")
         # await self.sio.emit('/my_adsf_event', data={"recorded": "hello"})
         await self.sio.wait()
-
+        
+    async def disconnect(self):
+        await self.sio.disconnect()
+        
     def _handle_connect(self):
         self.connected.emit()
 
@@ -239,6 +254,11 @@ class MainUI(QtWidgets.QMainWindow):
         QtWidgets.QMainWindow.__init__(self)
         self.ui = uic.loadUi(main_path+'/main.ui',self)
         self.resize(888, 600)
+        
+        self.label_6.setStyleSheet(''' font-size: 50px; ''')
+        # self.buttonsLayout.setContentsMargins(0, 0, 0, 0)
+        # self.buttonsLayout.addStretch()
+        self.gridLayout_5.setVerticalSpacing(5)
         icon = QtGui.QIcon()
         # icon.addPixmap(QtGui.QPixmap("PyShine.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.setWindowIcon(icon)
@@ -272,7 +292,7 @@ class MainUI(QtWidgets.QMainWindow):
         self.plotting = True
         self.stopped = False
         self.speaking_allowed =True
-        self.stopButton.setEnabled(False)
+        # self.stopButton.setEnabled(False)
         self.startButton.setEnabled(False)
         self.resetButton.setEnabled(False)
         
@@ -294,35 +314,39 @@ class MainUI(QtWidgets.QMainWindow):
         
         # self.start()
         
-        self.stopButton.clicked.connect(self.stopWorkers)
+        # self.stopButton.clicked.connect(self.stopWorkers)
         self.startButton.clicked.connect(self.start)
         self.resetButton.clicked.connect(self.reset)
 
-        self.stopButton.setEnabled(True)
+        # self.stopButton.setEnabled(True)
         self.startButton.setEnabled(True)
         self.resetButton.setEnabled(True)
-        self.already_reset = False
         
                     
 
     def reset(self):
+        # asyncio.run(self.client.reset())
+        #BOT Status
         if not self.speaker_worker is None:
             self.speaker_worker.stop_running()
 
+        self.label_6.setText("Ich würde gestoppt  ... ")
         self.stopped = True
         self.speaking_allowed = False
         self.speaker_worker = None
-        print("You have stopped all threads!\n")
         with self.plot_queue.mutex:
             self.plot_queue.queue.clear()
         with self.audio_queue.mutex:
             self.audio_queue.queue.clear()
-
-        self.already_reset = True
-        self.label_6.setText("BOT Status:   RESET  ... ")
+            
+        self.plot_queue = queue.Queue(maxsize=self.CHUNK)
+        self.audio_queue = queue.Queue()
+        self.plotdata =  np.zeros((self.length,len(self.channels)))
+        #BOT Status
+        self.displayStatus("Ich schlafe  ... ")
     
     def start(self):
-        wf = wave.open("welcome_message_2.wav")
+        wf = wave.open("welcome_message.wav")
         data = wf.readframes(-1)
         self.audio_queue.put_nowait(data)
         print("Initialiazing is finished.\n")
@@ -332,18 +356,16 @@ class MainUI(QtWidgets.QMainWindow):
             self.client.end_receive.connect(self.startSpeakerWorker)
             self.client.recorded_times.connect(self.saveLogs)
             self.client_pool.start(self.client_worker)
-        
         if self.speaker_worker is None:
             self.stopped = False
             self.speaking_allowed = True
             self.plotting = True
             self.speaker_worker = AudioOutputWorker(function=self.getAudio, audio_queue=self.audio_queue, CHUNK=self.CHUNK)
             self.speaker_worker.signals.waiting.connect(self.startAPIWorker)
-            # self.speaker_worker.signals.waiting.connect(self.request)
             self.speaker_worker.signals.status.connect(self.updateStatus)
             self.threadpool.start(self.speaker_worker)
             self.init = True
-        
+            
         self.startSpeakerWorker()
     
     def displayStatus(self, text):
@@ -358,35 +380,12 @@ class MainUI(QtWidgets.QMainWindow):
         api_worker = APIWorker()
         api_worker.signals.start.connect(self.displayStatus)
         api_worker.signals.result.connect(self.request)
-        # api_worker.signals.finished.connect(self.startSpeakerWorker)
+
         self.threadpool.start(api_worker)
 
-    # def request(self):
-    #     self.init=False
-    #     with sr.Microphone() as source:
-    #         print("Microphone is started ... \n")
-    #         self.r.adjust_for_ambient_noise(source)
-    #         print("Microphone is listening ... \n")
-    #         # self.updateStatus("BOT Status:   lISTENING  ... ")
-    #         audio = self.r.listen(source)
-    #         # self.updateStatus("BOT Status:   PROCESSING  ... ")
-    #         # self.signals.result.emit(audio.get_flac_data())
-    #         print("To Transcribion")
-    #         transcribtion = self.stt_model.run(audio.get_flac_data())
-    #         print(transcribtion)
-
-    #     asyncio.run(self.client.receiveFromGUI(transcribtion))
     
     def request(self, data):
         url = "http://localhost:5000/request"
-        # print(data)
-        # dict_data = {"recorded": data.decode('latin-1').replace("'", '"'),
-        #         "start_time":time.time(),
-        #         "request_length": len(data)}
-        
-        # dict_data = {"recorded": "data",
-        #         "start_time":"time.time()",
-        #         "request_length": "len(data)"}
         starting_time = time.time()
         print("Request is sent.\n")
         response = requests.get(url, data=data)
@@ -500,7 +499,8 @@ class MainUI(QtWidgets.QMainWindow):
         self.plot_queue.put_nowait(plot_data)
     
     def stopWorkers(self):
-        self.label_6.setText("BOT Status:   STOPPED  ... ")
+        #BOT Status
+        self.label_6.setText("Ich würde gestoppt  ... ")
         self.stopped = True
         self.speaking_allowed = False
         self.plotting = False
