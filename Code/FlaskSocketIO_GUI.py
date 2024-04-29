@@ -306,21 +306,20 @@ class MainUI(QtWidgets.QMainWindow):
                     
 
     def reset(self):
-        if not self.already_reset:
-            self.stopped = True
-            self.speaking_allowed = False
-            self.plotting = False
+        if not self.speaker_worker is None:
             self.speaker_worker.stop_running()
-            self.speaker_worker = None
-            print("You have stopped all threads!\n")
-            with self.plot_queue.mutex:
-                self.plot_queue.queue.clear()
-            with self.audio_queue.mutex:
-                self.audio_queue.queue.clear()
 
-            self.already_reset = True
-        else:
-            print("Already reset")
+        self.stopped = True
+        self.speaking_allowed = False
+        self.speaker_worker = None
+        print("You have stopped all threads!\n")
+        with self.plot_queue.mutex:
+            self.plot_queue.queue.clear()
+        with self.audio_queue.mutex:
+            self.audio_queue.queue.clear()
+
+        self.already_reset = True
+        self.label_6.setText("BOT Status:   RESET  ... ")
     
     def start(self):
         wf = wave.open("welcome_message_2.wav")
