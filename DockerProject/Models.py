@@ -1,12 +1,10 @@
 import torch
 import speech_recognition as sr
 from abc import ABC, abstractmethod
-
 from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM, GPT2Tokenizer, GPT2LMHeadModel
 from transformers import AutoProcessor, AutoModelForSpeechSeq2Seq, BarkModel
 from transformers import Conversation, SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
-
 import argparse
 from fastchat.conversation import conv_templates, SeparatorStyle
 from datasets import load_dataset
@@ -512,6 +510,7 @@ class FastChatModel(TTTStrategy):
                         device='cuda',
                         num_gpus='1',
                         load_8bit=True,
+                        # conv_template="vicuna_de_v1.1",
                         conv_template='vicuna_v1.1',
                         temperature=0.7,
                         max_new_tokens=512,
@@ -520,8 +519,9 @@ class FastChatModel(TTTStrategy):
         self.model, self.tokenizer = self.load_model(self.args.model_name, self.args.device, self.args.num_gpus, self.args.load_8bit)
         # Chat
         self.conv = conv_templates[self.args.conv_template].copy()
-        self.welcome_message = "Hallo, Ich heiße Vicuna, wie kann ich dir helfen?"
+        self.welcome_message = "Hallo, Ich heiße Alvi, wie kann ich dir helfen?"
         self.conv.append_message(self.conv.roles[1], self.welcome_message)
+        self.shift = 0
 
     
     def load_model(self, model_name, device, num_gpus=1, load_8bit=True):
@@ -639,15 +639,12 @@ class FastChatModel(TTTStrategy):
 
         pre = 0
         #new
+        self.shift+=3
         outputs = self.generate_stream(self.tokenizer, self.model, params, self.args.device)
         for output in outputs:
-            output = output[len(prompt)-3:].strip()
-            output = output.split(" ")
-            now = len(output)
-            if now - 1 > pre:
-                pre = now - 1
-        self.conv.messages[-1][-1] = " ".join(output)
-        return self.conv.messages[-1][1]
+            response = output[len(prompt)-self.shift:]
+        self.conv.messages[-1][-1] = response
+        return response
 
 
     def run(self, inp):
@@ -663,14 +660,11 @@ class FastChatModel(TTTStrategy):
         }
         # print(prompt)
         yielded_output = ""
+        self.shift+=4
         for outputs in self.generate_stream(self.tokenizer, self.model, params, self.args.device):
             if outputs.endswith(('.', '?', '!', ':')):
                 
-                if len(yielded_output) == 0:
-                    outputs = outputs[len(prompt)-3:].strip()
-                else:
-                    outputs = outputs[len(prompt) + len(yielded_output) -3:].strip()
-                
+                outputs = outputs[len(prompt)+len(yielded_output)-self.shift:].strip()
                 yielded_output+= outputs + " "
                 yield outputs
         yield "END"
@@ -679,6 +673,7 @@ class FastChatModel(TTTStrategy):
     def clear_history(self):
         self.conv.messages.clear()
         self.conv.append_message(self.conv.roles[1], self.welcome_message)
+        self.shift = 3
     
     def clear_cache(self):
         del self.model
@@ -994,7 +989,7 @@ class XTTS_V2(TTSStrategy):
     ----------
     """
 
-    def __init__(self, speaker:str = "welcome_message_2.wav") -> None:
+    def __init__(self, speaker:str = "welcome_message.wav") -> None:
         super().__init__()
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -1009,7 +1004,7 @@ class XTTS_V2(TTSStrategy):
         
         print("Generating started \n")
         # audio_list = self.model.tts(text=text, speaker_wav=self.voice_preset, language="de")
-        audio_list = self.model.tts(text=text, speaker_wav=self.voice_preset)
+        audio_list = self.model.tts(text=text, speaker_wav=self.voice_preset, speed=0.5)
         data = np.asarray(audio_list, dtype=np.float32)
         print("Generating finished\n")
         # sf.write(filepath, data, samplerate=sampling_rate)

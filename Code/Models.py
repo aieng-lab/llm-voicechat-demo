@@ -1,12 +1,10 @@
 import torch
 import speech_recognition as sr
 from abc import ABC, abstractmethod
-
 from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM, GPT2Tokenizer, GPT2LMHeadModel
 from transformers import AutoProcessor, AutoModelForSpeechSeq2Seq, BarkModel
 from transformers import Conversation, SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
-
 import argparse
 from fastchat.conversation import conv_templates, SeparatorStyle
 from datasets import load_dataset
@@ -62,6 +60,97 @@ class TTSStrategy(ABC):
     @abstractmethod
     def run(self, text:str):
         pass
+
+class App():
+    """Our Speech-to-Speech application class with no GUI.
+    ----------
+    Attributes:
+        stt_model:STTStrategy 'Speech-to-Text Model'.
+
+        ttt_model:TTTStrategy 'Text-to-Text Model'.
+
+        tts_model:TTSStrategy 'Text-to-Speech Model'.
+
+    ----------
+    Functions:
+        run_STT: call the run() function of the stt_model and print the output.
+
+        run_TTT: call the run(str) function of the ttt_model and return the output.
+    ----------
+    """
+    def __init__(self, 
+                 stt_model:STTStrategy,
+                 ttt_model:TTTStrategy,
+                 tts_model:TTSStrategy):
+        """
+        ----------
+        Parameters:
+            stt_model:STTStrategy 'Speech-to-Text Model'.
+
+            ttt_model:TTTStrategy 'Text-to-Text Model'.
+
+            tts_model:TTSStrategy 'Text-to-Speech Model'.
+
+        ----------
+        Return: None
+        ----------
+        """
+        self.stt_model=stt_model
+        self.ttt_model=ttt_model
+        self.tts_model=tts_model
+    
+    def run_STT(self):
+        """ Call the run() function of the stt_model and print the output.
+        ----------
+        Parameters: None
+        ----------
+        Return:
+            text:str, the converted text from a speech.  
+        ----------
+        """
+        text = self.stt_model.run()
+        return text
+    def run_TTT(self, text:str):
+        """ Call the run(str) function of the ttt_model and return the output.
+        ----------
+        Parameters:
+            text:str.
+
+        ----------
+        Return: 
+            reply:str.
+        ----------
+        """
+        reply = self.ttt_model.run(text)
+        return reply
+    
+    def run_TTS(self, text:str):
+        """ Call the run(str) function of the tts_model.
+        ----------
+        Parameters: 
+            text:str.
+        ----------
+        Return: None
+        ----------
+        """
+        self.tts_model.run(text)
+
+    def run(self):
+        """Run all of the applications conponents.
+        ----------
+        Parameters: None
+        ----------
+        Return: None
+        ----------
+        """
+        live = True
+        while(live):
+            inp = self.run_STT()
+            if inp.lower() in ["bye", "good bye"]:
+                live = False
+            else:
+                self.run_TTS(self.run_TTT(inp))
+
 
 
         
@@ -381,10 +470,10 @@ class FastChatModel(TTTStrategy):
     ----------
     Attributes:
         args:dict:
-            model_name (str): the name of the used vicuna model.
-            device (str), 'cpu', 'cuda', 'mps'
-            num_gpus (int, optional), number of GPUs to be used by the model.
-            load_8bit (bool, optional),  whether to use the 8bit compression for low memory.
+            model_name: the name of the used vicuna model.
+            device:str, 'cpu', 'cuda', 'mps'
+            num_gpus:str, number of GPUs to be used by the model.
+            load_8bit:bool,  whether to use the 8bit compression for low memory.
             conv_template:str, specify the template of the conversation.
             temperature:float.
             max_new_token:int, max amount of generated characters.
@@ -395,32 +484,33 @@ class FastChatModel(TTTStrategy):
         tokenizer: the tokenizer used to encode inputs and decode outputs of the model.
 
         conv: conversation template.
+
+    ----------
+    Functions:
+        load_model: load both the model and the tokenizer from transformers module corresponding to model_name.
+
+        generate_stream:
+
+        generate-start:
+
+        run:
+
+    ----------
     """
     def __init__(self):
         """
         ----------
-        Parameters: 
-            args:dict:
-                model_name (str): the name of the used vicuna model.
-                device (str), 'cpu', 'cuda', 'mps'
-                num_gpus (int, optional), number of GPUs to be used by the model.
-                load_8bit (bool, optional),  whether to use the 8bit compression for low memory.
-                conv_template:str, specify the template of the conversation.
-                temperature:float.
-                max_new_token:int, max amount of generated characters.
-                debug:bool.
-            
-            model: the model used to generate text.
-
-            tokenizer: the tokenizer used to encode inputs and decode outputs of the model.
-
-            conv: conversation template.
+        Parameters: None
+        ----------
+        Return: None
+        ----------
         """
         super().__init__()            
         self.args = dict(model_name='lmsys/vicuna-7b-v1.5-16k',
                         device='cuda',
-                        num_gpus=1,
+                        num_gpus='1',
                         load_8bit=True,
+                        # conv_template="vicuna_de_v1.1",
                         conv_template='vicuna_v1.1',
                         temperature=0.7,
                         max_new_tokens=512,
@@ -429,26 +519,12 @@ class FastChatModel(TTTStrategy):
         self.model, self.tokenizer = self.load_model(self.args.model_name, self.args.device, self.args.num_gpus, self.args.load_8bit)
         # Chat
         self.conv = conv_templates[self.args.conv_template].copy()
-        self.welcome_message = "Hallo, Ich heiße Vicuna, wie kann ich dir helfen?"
+        self.welcome_message = "Hallo, Ich heiße Alvi, wie kann ich dir helfen?"
         self.conv.append_message(self.conv.roles[1], self.welcome_message)
+        self.shift = 0
 
     
     def load_model(self, model_name, device, num_gpus=1, load_8bit=True):
-        """Loads both the model and tokenizer.
-
-        Args:
-            model_name (str): model's path on local machine or model's id on HuggingFace.co
-            device (str): On which the model will be loaded. 'cpu', 'cuda', 'mps'
-            num_gpus (int, optional): number of GPUs to be used by the model. Defaults to 1.
-            load_8bit (bool, optional): to use the 8bit compression for low memory. Defaults to True.
-
-        Raises:
-            ValueError: If the selected device is invalid.
-
-        Returns:
-            model (AutoModelForCausalLM): the loaded model.
-            tokenizer (AutoTokenizer): the loaded tokenizer.
-        """
         if device == "cpu":
             kwargs = {}
         elif device == "cuda":
@@ -485,20 +561,7 @@ class FastChatModel(TTTStrategy):
     @torch.inference_mode()
     def generate_stream(self, tokenizer, model, params, device,
                         context_len=2048, stream_interval=2):
-        """Adapted from fastchat/serve/model_worker.py::generate_stream.
-        Generates and stream text.
-
-        Args:
-            tokenizer (AutoTokenizer): Pre-trained tokenizer.
-            model (AutoModelForCausalLM): Pre-trained large language model
-            params (dict): other arguments.
-            device (str): On which the model will be loaded. 'cpu', 'cuda', 'mps'
-            context_len (int, optional): Length of history to be considered plus the new generated text. Defaults to 2048.
-            stream_interval (int, optional): Number of tokens to be yielded each time. Defaults to 2.
-
-        Yields:
-            (str): the generated text.
-        """
+        """Adapted from fastchat/serve/model_worker.py::generate_stream"""
 
         prompt = params["prompt"]
         l_prompt = len(prompt)
@@ -508,8 +571,7 @@ class FastChatModel(TTTStrategy):
 
         input_ids = tokenizer(prompt).input_ids
         output_ids = list(input_ids)
-        
-        # The input is then preprocessed to ensure it is within a specific length
+
         max_src_len = context_len - max_new_tokens - 8
         input_ids = input_ids[-max_src_len:]
         outputs = []
@@ -563,14 +625,6 @@ class FastChatModel(TTTStrategy):
         del past_key_values
 
     def generate_start(self, inp):
-        """Generates text based on the input query.
-
-        Args:
-            inp (str): input query
-
-        Returns:
-            str: Model's response
-        """
         self.conv.append_message(self.conv.roles[0], inp)
         self.conv.append_message(self.conv.roles[1], None)
         prompt = self.conv.get_prompt()
@@ -585,26 +639,15 @@ class FastChatModel(TTTStrategy):
 
         pre = 0
         #new
+        self.shift+=3
         outputs = self.generate_stream(self.tokenizer, self.model, params, self.args.device)
         for output in outputs:
-            output = output[len(prompt)-3:].strip()
-            output = output.split(" ")
-            now = len(output)
-            if now - 1 > pre:
-                pre = now - 1
-        self.conv.messages[-1][-1] = " ".join(output)
-        return self.conv.messages[-1][1]
+            response = output[len(prompt)-self.shift:]
+        self.conv.messages[-1][-1] = response
+        return response
 
 
     def run(self, inp):
-        """Generates and streams text based on the input query.
-
-        Args:
-            inp (str): input query
-
-        Yields:
-            str: Model's response
-        """
         self.conv.append_message(self.conv.roles[0], inp)
         self.conv.append_message(self.conv.roles[1], None)
         prompt = self.conv.get_prompt()
@@ -617,35 +660,336 @@ class FastChatModel(TTTStrategy):
         }
         # print(prompt)
         yielded_output = ""
+        self.shift+=4
         for outputs in self.generate_stream(self.tokenizer, self.model, params, self.args.device):
             if outputs.endswith(('.', '?', '!', ':')):
                 
-                if len(yielded_output) == 0:
-                    outputs = outputs[len(prompt)-3:].strip()
-                else:
-                    outputs = outputs[len(prompt) + len(yielded_output) -3:].strip()
-                
+                outputs = outputs[len(prompt)+len(yielded_output)-self.shift:].strip()
                 yielded_output+= outputs + " "
                 yield outputs
         yield "END"
         self.conv.messages[-1][-1] = yielded_output.strip()
     
     def clear_history(self):
-        """Clear chat's history.
-        """
         self.conv.messages.clear()
         self.conv.append_message(self.conv.roles[1], self.welcome_message)
+        self.shift = 3
+    
+    def clear_cache(self):
+        del self.model
+        self.model = None
+        torch.cuda.empty_cache()
 
+
+class PersonaGPT(TTTStrategy):
+    """ A text to text strategy, it builds on the DialoGPT-medium pretrained model based on the GPT-2 architecture. Subclass of TTTStrategy
+    ----------
+    Attributes:
+
+
+    ----------
+    Functions:
+
+    ----------
+    """
+    def __init__(self):
+        """
+        ----------
+        Parameters: None
+        ----------
+        Return: None
+        ----------
+        """
+        super().__init__()            
+        self.tokenizer = GPT2Tokenizer.from_pretrained("af1tang/personaGPT", padding_side='left')
+        self.model = GPT2LMHeadModel.from_pretrained("af1tang/personaGPT")
+        if torch.cuda.is_available():
+            self.model = self.model.cuda()
+        self.dialog_hx = []
+
+    def flatten(self, l):
+        return [item for sublist in l for item in sublist]
+    
+    def to_data(self, x):
+        if torch.cuda.is_available():
+            x = x.cpu()
+        return x.data.numpy()
+    
+    def to_var(self, x):
+        if not torch.is_tensor(x):
+            x = torch.Tensor(x)
+        if torch.cuda.is_available():
+            x = x.cuda()
+        return x
+    
+    def display_dialog_history(self):
+        for j, line in enumerate(self.dialog_hx):
+            msg = self.tokenizer.decode(line)
+            if j %2 == 0:
+                print(">> User: "+ msg)
+            else:
+                print("Bot: "+msg)
+                print()
+    
+    def generate_next(self, bot_input_ids, do_sample=True, top_k=10, top_p=.92,
+                  max_new_tokens=1000):
+        full_msg = self.model.generate(bot_input_ids, do_sample=True,
+                                                top_k=top_k, top_p=top_p, 
+                                                max_new_tokens=max_new_tokens, pad_token_id=self.tokenizer.eos_token_id)
+        msg = self.to_data(full_msg.detach()[0])[bot_input_ids.shape[-1]:]
+        return msg
+
+    def run(self, inp):
+        # encode the user input
+        user_inp = self.tokenizer.encode(inp + self.tokenizer.eos_token)
+        # append to the chat history
+        self.dialog_hx.append(user_inp)
+            
+        # generated a response while limiting the total chat history to 1000 tokens, 
+        bot_input_ids = self.to_var([self.flatten(self.dialog_hx)]).long()
+        msg = self.generate_next(bot_input_ids)
+        self.dialog_hx.append(msg)
+        return self.tokenizer.decode(msg, skip_special_tokens=True)
+    
+    def clear_history(self):
+        self.dialog_hx.clear()
+    
+    def clear_cache(self):
+        del self.model
+        self.model = None
+        torch.cuda.empty_cache()
+
+
+class BotPipline(TTTStrategy):
+    """ A text to text strategy. Subclass of TTTStrategy
+    ----------
+    Attributes:
+
+
+    ----------
+    Functions:
+
+    ----------
+    """
+    def __init__(self):
+        """
+        ----------
+        Parameters: None
+        ----------
+        Return: None
+        ----------
+        """
+        super().__init__()
+        self.conv = pipeline("conversational", model=self.model_name, device=0)
+        self.conversation = Conversation()
+
+    def run(self, inp):
+        
+        self.conversation.add_user_input(inp)    
+        
+        return self.conv(self.conversation).generated_responses[-1]
+    
+    def clear_history(self):
+        del self.conversation
+        self.conversation = Conversation()
+    
+    def clear_cache(self):
+        del self.conv
+        self.conv = None
+        torch.cuda.empty_cache()
+
+
+class BlenderBot(BotPipline):
+
+    def __init__(self):
+        self.model_name = "facebook/blenderbot-400M-distill"
+        super().__init__()
+    
+    def run(self, inp):
+        return super().run(inp)
+    
+    def clear_history(self):
+        return super().clear_history()
+    
+    def clear_cache(self):
+        return super().clear_cache()
+    
+
+class Guanaco(BotPipline):
+
+    def __init__(self):
+        self.model_name = "Fredithefish/Guanaco-3B-Uncensored-v2"
+        super().__init__()
+    
+    def run(self, inp):
+        return super().run(inp)
+    
+    def clear_history(self):
+        return super().clear_history()
+    
+    def clear_cache(self):
+        return super().clear_cache()
+
+
+class SpeechT5(TTSStrategy):
+    """
+    ----------
+    Attributes: None
+
+    ----------
+    Functions:
+        run(): 
+    ----------
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        # self.device = "cpu"
+        self.processor = SpeechT5Processor.from_pretrained("microsoft/speecht5_tts")
+        self.model = SpeechT5ForTextToSpeech.from_pretrained("microsoft/speecht5_tts").to(self.device)
+        self.vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan").to(self.device)
+        self.embeddings_dataset = load_dataset("Matthijs/cmu-arctic-xvectors", split="validation")
+        
+        self.speakers_list = {
+            'awb': 0,     # Scottish male
+            'bdl': 1138,  # US male
+            'clb': 2271,  # US female
+            'jmk': 3403,  # Canadian male
+            'ksp': 4535,  # Indian male
+            'rms': 5667,  # US male
+            'slt': 6799   # US female
+        }
+        self.speaker = self.speakers_list["rms"]
+
+    def run(self, text:str, filepath:str = "text_to_speech.wav"):
+        inputs = self.processor(text=text, return_tensors="pt").to(self.device)
+        if self.speaker is not None:
+            # load xvector containing speaker's voice characteristics from a dataset
+            speaker_embeddings = torch.tensor(self.embeddings_dataset[self.speaker]["xvector"]).unsqueeze(0).to(self.device)
+        else:
+            # random vector, meaning a random voice
+            speaker_embeddings = torch.randn((1, 512)).to(self.device)
+        # generate speech with the models
+        speech = self.model.generate_speech(inputs["input_ids"], speaker_embeddings, vocoder=self.vocoder)
+        
+        sf.write(filepath, speech.cpu().numpy(), samplerate=16000)
+        return filepath
 		
+
+# class Espnet(TTSStrategy):
+#     """
+#     ----------
+#     Attributes: None
+
+#     ----------
+#     Functions:
+#         run(): 
+#     ----------
+#     """
+
+#     def __init__(self) -> None:
+#         super().__init__()
+#         self.model = Text2Speech.from_pretrained("espnet/kan-bayashi_ljspeech_vits")
+
+#     def run(self, text:str, filepath:str = "/text_to_speech.wav"):
+#         speech = self.model(text)
+        
+#         sf.write(filepath, speech['wav'].numpy(), samplerate=16000)
+#         return filepath
+    
+#     def run(self, text:str, filepath:str = "/text_to_speech.wav"):
+#         speech = self.model(text)
+#         return speech['wav'].numpy().astype(np.float32)
+		
+
+
+class BarkSmall(TTSStrategy):
+    """
+    ----------
+    Attributes: None
+
+    ----------
+    Functions:
+        run(): 
+    ----------
+    """
+
+    def __init__(self, voice_preset = "v2/de_speaker_5") -> None:
+        super().__init__()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        self.model = BarkModel.from_pretrained("suno/bark-small", torch_dtype=torch.float16).to(self.device)
+        # self.model = BarkModel.from_pretrained("suno/bark-small", torch_dtype=torch.float16, use_flash_attention_2=True).to(self.device)
+
+        self.processor = AutoProcessor.from_pretrained("suno/bark-small")
+
+        self.voice_preset = voice_preset
+
+
+    def run(self, text:str, filepath:str = "text_to_speech.wav"):
+        
+        inputs = self.processor(text, voice_preset=self.voice_preset).to(self.device)
+        print("Generating started \n")
+        audio_array = self.model.generate(**inputs)
+        print("Generating finished\n")
+        sampling_rate = self.model.generation_config.sample_rate
+        data = audio_array.cpu().numpy().squeeze()
+        data = data.astype(np.float32)
+        # sf.write(filepath, data, samplerate=sampling_rate)
+        return data
+
+class Bark(TTSStrategy):
+    """
+    ----------
+    Attributes: None
+
+    ----------
+    Functions:
+        run(): 
+    ----------
+    """
+
+    def __init__(self, voice_preset = "v2/de_speaker_5") -> None:
+        super().__init__()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        self.model = BarkModel.from_pretrained("suno/bark", torch_dtype=torch.float16).to(self.device)
+
+        self.processor = AutoProcessor.from_pretrained("suno/bark")
+
+        self.voice_preset = voice_preset
+
+
+    def run(self, text:str, filepath:str = "text_to_speech.wav"):
+        
+        inputs = self.processor(text, voice_preset=self.voice_preset).to(self.device)
+        print("Generating started \n")
+        audio_array = self.model.generate(**inputs)
+        print("Generating finished\n")
+        sampling_rate = self.model.generation_config.sample_rate
+        data = audio_array.cpu().numpy().squeeze()
+        data = data.astype(np.float32)
+        # sf.write(filepath, data, samplerate=sampling_rate)
+        # return filepath
+        return data
+
+#"Hallo, da is Salim. Ich komme aus Syrien und bin 28 Jahre alt. Ich mache einen Master in Informatik in Passau. Ich habe im Moment einen Minijob an der Uni. Dabei muss ich ein VoiceBot entwickeln."
+    
+
 
 class XTTS_V2(TTSStrategy):
     """
     ----------
-    Args:
-        speaker (str): path to voice file.
+    Attributes: None
+
+    ----------
+    Functions:
+        run(): 
+    ----------
     """
 
-    def __init__(self, speaker:str = "welcome_message_2.wav") -> None:
+    def __init__(self, speaker:str = "welcome_message.wav") -> None:
         super().__init__()
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -657,18 +1001,10 @@ class XTTS_V2(TTSStrategy):
 
 
     def run(self, text:str, filepath:str = "text_to_speech.wav"):
-        """Generates speech of the provided text.
-
-        Args:
-            text (str): input of which the speech is generated.
-            filepath (str, optional): the file path to save the speech in. Defaults to "text_to_speech.wav".
-
-        Returns:
-            (numpy.ndarray): Numpy array of audio bytes.
-        """
+        
         print("Generating started \n")
         # audio_list = self.model.tts(text=text, speaker_wav=self.voice_preset, language="de")
-        audio_list = self.model.tts(text=text, speaker_wav=self.voice_preset)
+        audio_list = self.model.tts(text=text, speaker_wav=self.voice_preset, speed=0.5)
         data = np.asarray(audio_list, dtype=np.float32)
         print("Generating finished\n")
         # sf.write(filepath, data, samplerate=sampling_rate)

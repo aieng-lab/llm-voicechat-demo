@@ -38,7 +38,7 @@ stt_model, ttt_model, tts_model = load_models()
 @sio.on("connect")
 def connect():
     print('Client connected')
-    sio.emit("client_Unlock", data={"Client": 1})
+    # sio.emit("client_Unlock", data={"Client": 1})
 
 @sio.on("disconnect")
 def disconnect():
@@ -91,7 +91,9 @@ def generateAnswer(voice_request):
                 print(entry)
                 print("\n##############\n")
                 current_time = time.time()
-
+                if len(entry)<1:
+                    entry = "Entschuldigung, ich konnte deine Anfrage nicht beantworten"
+                    continue
                 voice_answer = tts_model.run(entry)
                 tts_times.append(time.time()-current_time)
                 
@@ -132,4 +134,4 @@ def receive():
     return {"response": received_time}
 
 if __name__ == '__main__':
-    sio.run(app, host="0.0.0.0", port="5000",debug=True, use_reloader=False)
+    sio.run(app, debug=True, use_reloader=False)
