@@ -85,7 +85,7 @@ The project is developed using python Flask-SocketIO with front- and backend.
    - Holds SocketIO AsyncClient to communicate with the backend. <br /><br />
    - Controls both microphone and speaker to record an play audio.
    - Uses QRunnable to work as threads.
--Backend:
+- Backend:
    - Holds The FlaskSocketIO AsyncServer to communicate with frontend.
    - Speech-to-Text model.
    - Text-to-Text model.
