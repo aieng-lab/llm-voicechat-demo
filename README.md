@@ -81,15 +81,15 @@ Everything must be closed from the terminals.
 The project is developed using python Flask-SocketIO with front- and backend.
 
 - The frontend consists of:
-   . The GUI designed using PyQt5.
-   . The SocketIO AsyncClient to communicate with the backend.
+   - The GUI designed using PyQt5.
+   - The SocketIO AsyncClient to communicate with the backend.
    It also controls both microphone and speaker to record an play audio.
 
 - The backend consists of:
-   . The FlaskSocketIO AsyncServer to communicate with frontend.
-   . Speech-to-Text model.
-   . Text-to-Text model.
-   . Text-to-Speech model.
+   - The FlaskSocketIO AsyncServer to communicate with frontend.
+   - Speech-to-Text model.
+   - Text-to-Text model.
+   - Text-to-Speech model.
 
 ## How it works:
 
