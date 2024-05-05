@@ -101,19 +101,6 @@ class WhisperModel(STTStrategy):
             text=self.p(audio.get_flac_data(), max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
             print(text, "\n")
         return text
-    
-    def run_gradio(self, audio):
-        """ Convert audio data recorded with a gradio microphone to text.
-        ----------
-        Parameters:
-            audio: byte string representing the contents of a FLAC file containing the audio represented by the AudioData instance.
-        ----------
-        Return: 
-           The converted text from the recorded speech
-        ----------
-
-        """
-        return self.p(audio, max_new_tokens=500)["text"]
 
 class WhisperTiny(WhisperModel):
     """A speech to text strategy using Whisper model from HuggingFace hub. Subclass of WhisperModel.
@@ -156,19 +143,6 @@ class WhisperTiny(WhisperModel):
         ----------
         """
         return super().run()
-    
-    def run_gradio(self, audio):
-        """ Convert audio data recorded with a gradio microphone to text.
-        ----------
-        Parameters:
-            audio: byte string representing the contents of a FLAC file containing the audio represented by the AudioData instance.
-        ----------
-        Return: 
-           The converted text from the recorded speech
-        ----------
-
-        """
-        return super().run_gradio(audio)
 
 
 class WhisperMedium(WhisperModel):
@@ -206,19 +180,6 @@ class WhisperMedium(WhisperModel):
         """
         return super().run()
     
-    def run_gradio(self, audio):
-        """ Convert audio data recorded with a gradio microphone to text.
-        ----------
-        Parameters:
-            audio: byte string representing the contents of a FLAC file containing the audio represented by the AudioData instance.
-        ----------
-        Return: 
-           The converted text from the recorded speech
-        ----------
-
-        """
-        return super().run_gradio(audio)
-    
 class WhisperLarge(WhisperModel):
     """A speech to text strategy using Whisper model from HuggingFace hub. Subclass of WhisperModel.
     ----------
@@ -253,19 +214,6 @@ class WhisperLarge(WhisperModel):
         ----------
         """
         return super().run()
-
-    def run_gradio(self, audio):
-        """ Convert audio data recorded with a gradio microphone to text.
-        ----------
-        Parameters:
-            audio: byte string representing the contents of a FLAC file containing the audio represented by the AudioData instance.
-        ----------
-        Return: 
-           The converted text from the recorded speech
-        ----------
-
-        """
-        return super().run_gradio(audio)
         
 
 class WhisperLargeV2(WhisperModel):
@@ -325,20 +273,6 @@ class WhisperLargeV2(WhisperModel):
     def run(self, audio):
         return self.p(audio, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
 
-    def run_gradio(self, audio):
-        """ Convert audio data recorded with a gradio microphone to text.
-        ----------
-        Parameters:
-            audio: byte string representing the contents of a FLAC file containing the audio represented by the AudioData instance.
-        ----------
-        Return: 
-           The converted text from the recorded speech
-        ----------
-
-        """
-        return super().run_gradio(audio)
-
-
 
     
 class FastChatModel(TTTStrategy):
@@ -346,12 +280,12 @@ class FastChatModel(TTTStrategy):
     ----------
     Attributes:
         args:dict:
-            model_name: the name of the used vicuna model.
-            device:str, 'cpu', 'cuda', 'mps'
-            num_gpus:str, number of GPUs to be used by the model.
-            load_8bit:bool,  whether to use the 8bit compression for low memory.
-            conv_template:str, specify the template of the conversation.
-            temperature:float.
+            model_name (str): the name of the used vicuna model.
+            device (str): 'cpu', 'cuda', 'mps'
+            num_gpus (int, optional): number of GPUs to be used by the model.
+            load_8bit (bool, optional):  whether to use the 8bit compression for low memory.
+            conv_template (str): specify the template of the conversation.
+            temperature (float) : .
             max_new_token:int, max amount of generated characters.
             debug:bool.
         
@@ -360,31 +294,12 @@ class FastChatModel(TTTStrategy):
         tokenizer: the tokenizer used to encode inputs and decode outputs of the model.
 
         conv: conversation template.
-
-    ----------
-    Functions:
-        load_model: load both the model and the tokenizer from transformers module corresponding to model_name.
-
-        generate_stream:
-
-        generate-start:
-
-        run:
-
-    ----------
     """
     def __init__(self):
-        """
-        ----------
-        Parameters: None
-        ----------
-        Return: None
-        ----------
-        """
         super().__init__()            
         self.args = dict(model_name='lmsys/vicuna-7b-v1.5-16k',
                         device='cuda',
-                        num_gpus='1',
+                        num_gpus=1,
                         load_8bit=True,
                         # conv_template="vicuna_de_v1.1",
                         conv_template='vicuna_v1.1',
@@ -401,6 +316,19 @@ class FastChatModel(TTTStrategy):
 
     
     def load_model(self, model_name, device, num_gpus=1, load_8bit=True):
+        """Loads both the model and tokenizer.
+        Args:
+            model_name (str): model's path on local machine or model's id on HuggingFace.co
+            device (str): On which the model will be loaded. 'cpu', 'cuda', 'mps'
+            num_gpus (int, optional): number of GPUs to be used by the model. Defaults to 1.
+            load_8bit (bool, optional): to use the 8bit compression for low memory. Defaults to True.
+        Raises:
+            ValueError: If the selected device is invalid.
+        Returns:
+            model (AutoModelForCausalLM): the loaded model.
+            tokenizer (AutoTokenizer): the loaded tokenizer.
+        """
+
         if device == "cpu":
             kwargs = {}
         elif device == "cuda":
@@ -437,7 +365,18 @@ class FastChatModel(TTTStrategy):
     @torch.inference_mode()
     def generate_stream(self, tokenizer, model, params, device,
                         context_len=2048, stream_interval=2):
-        """Adapted from fastchat/serve/model_worker.py::generate_stream"""
+        """Adapted from fastchat/serve/model_worker.py::generate_stream.
+        Generates and stream text.
+        Args:
+            tokenizer (AutoTokenizer): Pre-trained tokenizer.
+            model (AutoModelForCausalLM): Pre-trained large language model
+            params (dict): other arguments.
+            device (str): On which the model will be loaded. 'cpu', 'cuda', 'mps'
+            context_len (int, optional): Length of history to be considered plus the new generated text. Defaults to 2048.
+            stream_interval (int, optional): Number of tokens to be yielded each time. Defaults to 2.
+        Yields:
+            (str): the generated text.
+        """
 
         prompt = params["prompt"]
         l_prompt = len(prompt)
@@ -447,7 +386,7 @@ class FastChatModel(TTTStrategy):
 
         input_ids = tokenizer(prompt).input_ids
         output_ids = list(input_ids)
-
+        # The input is then preprocessed to ensure it is within a specific length
         max_src_len = context_len - max_new_tokens - 8
         input_ids = input_ids[-max_src_len:]
         outputs = []
@@ -501,6 +440,12 @@ class FastChatModel(TTTStrategy):
         del past_key_values
 
     def generate_start(self, inp):
+        """Generates text based on the input query.
+        Args:
+            inp (str): input query
+        Returns:
+            str: Model's response
+        """
         self.conv.append_message(self.conv.roles[0], inp)
         self.conv.append_message(self.conv.roles[1], None)
         prompt = self.conv.get_prompt()
@@ -524,6 +469,12 @@ class FastChatModel(TTTStrategy):
 
 
     def run(self, inp):
+        """Generates and streams text based on the input query.
+        Args:
+            inp (str): input query
+        Yields:
+            str: Model's response
+        """
         self.conv.append_message(self.conv.roles[0], inp)
         self.conv.append_message(self.conv.roles[1], None)
         prompt = self.conv.get_prompt()
@@ -546,6 +497,8 @@ class FastChatModel(TTTStrategy):
         self.conv.messages[-1][-1] = yielded_output.strip()
     
     def clear_history(self):
+        """Clear chat's history.
+        """
         self.conv.messages.clear()
         self.conv.append_message(self.conv.roles[1], self.welcome_message)
         self.shift = 3
@@ -558,14 +511,10 @@ class FastChatModel(TTTStrategy):
 
 
 class XTTS_V2(TTSStrategy):
-    """
-    ----------
-    Attributes: None
-
-    ----------
-    Functions:
-        run(): 
-    ----------
+    """A text to speech strategy using /de/thorsten/vits model from Coqui project. Subclass of TTTStrategy
+        
+        Args:
+            speaker (str): path to voice file.
     """
 
     def __init__(self, speaker:str = "welcome_message.wav") -> None:
@@ -580,7 +529,13 @@ class XTTS_V2(TTSStrategy):
 
 
     def run(self, text:str, filepath:str = "text_to_speech.wav"):
-        
+        """Generates speech of the provided text.
+        Args:
+            text (str): input of which the speech is generated.
+            filepath (str, optional): the file path to save the speech in. Defaults to "text_to_speech.wav".
+        Returns:
+            (numpy.ndarray): Numpy array of audio bytes.
+        """        
         # print("Generating started \n")        
         # speed=2.0, emotion="Sad"
         audio_list = self.model.tts(text=text, speaker_wav=self.voice_preset)

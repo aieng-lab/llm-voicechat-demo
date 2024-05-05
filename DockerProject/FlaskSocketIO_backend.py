@@ -23,6 +23,12 @@ sio = SocketIO(app, async_mode = "threading")
 entry_length = 300
 
 def load_models():
+    """Loads all there models: Speech-to-Text, Text-to-Text, Text-to-Speech models.
+    Returns:
+        (WhisperLargeV2): Speech-to-Text model.
+        (FastChatModel): Text-to-Text models.
+        (XTTS_V2): Text-to-Speech models.
+    """
     # print("\nLoading Whisper ...\n")
     stt_model = WhisperLargeV2()
     # print("\nLoading FastChat ...\n")
@@ -37,21 +43,40 @@ stt_model, ttt_model, tts_model = load_models()
 
 @sio.on("connect")
 def connect():
+    """Triggered when a client connect.
+    Emits back a signal to the connected client.
+    """
     print('Client connected')
 
 @sio.on("disconnect")
 def disconnect():
+    """Triggered when a client disconnect.
+    Clears chat history as well.
+    """
     ttt_model.clear_history()
     print("Client disconnected")
 
 
 @sio.on('reset', namespace="/")
 def reset(sid):
+    """Triggered on reset emit. Clears chat history.
+    Args:
+        sid (int): Clients id, assigned automatically by the socket server.
+    """
     ttt_model.clear_history()
     print(" \nChat history is reset. \n#####")
     
 
 def generateAnswer(voice_request):
+    """Takes audio bytes as input and processes it follows: 
+        1- Transcribes it using the Speech-To-Text model.
+        2- Query the Text-to-Text model on the transcribed text from 1.
+        3- Generates speech on each generated chunck using the Text-to-Speech model.
+        4- Emits the generated speech to the client.
+        5- When generating is finished, a 'request' emit to notify the client to record a new voice request.
+    Args:
+        voice_request (bytes): Recorded voice request from client.
+    """
     first_response = True
     logs = {}
     start_time = time.time()
@@ -118,6 +143,10 @@ def generateAnswer(voice_request):
 
 @app.route("/request", methods=["POST", "GET"])
 def receive():
+    """Receives the voice request from client, creates a new thread to process it.
+    Returns:
+        (dict): Resonse message containing the emitting time.
+    """
     received_time = time.time()
     # print("\nRequest is recieved\n")
     bytes_data = request.get_data()
