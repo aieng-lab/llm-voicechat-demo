@@ -82,19 +82,38 @@ Everything must be closed from the terminals (Still working on closing).
 
 
 ## Architicture:
-\\ Describe the architicture here
+The project is developed using python Flask-SocketIO with front- and backend.
+
+- The frontend consists of:
+1. The GUI designed using PyQt5.
+2. The SocketIO AsyncClient to communicate with the backend.
+It also controls both microphone and speaker to record an play audio.
+
+- The backend consists of:
+1. The FlaskSocketIO AsyncServer to communicate with frontend.
+2. Speech-to-Text model.
+3. Text-to-Text model.
+4. Text-to-Speech model.
 
 ## How it works:
 
-The GUI will record, play and plot audio data.
+When "Start" is clicked, the frontend starts with playing a pre-recorded welcome message and connects to the backend through socketIO client.
+Then the microphone is initialized and records user's query.
 
-When an audio is recorded, it will be sent to the Flask-SocketIO server (backend) as a request.
+After an audio is recorded, it will be sent to the Flask-SocketIO server (backend) as GET request.
 
-When the backend receives a request, it will process it as follows:
+The backend receives the request on a Flask route, creates a new thread to process it as follows:
 
 1. Transcribes the audio data using a speech-to-text model (WhisperLargeV2)
-2. Streams generated text using a large language model (FastChat/Vicuna).
-3. Generates speech for each chunk of generated text using text-to-speech model (thorsten/vits from XTT2/Coquit)
+2. Streams generated text on the transcribtion using a large language model (FastChat/Vicuna).
+3. Generates speech for each chunk of generated text using text-to-speech model (thorsten/vits from XTT2/Coqui)
+4. Each generated speech would be sent back to frontend using socketIO as audio bytes.
+
+The frontend reformat and normalize those bytes to be played and plotted synchronously.
+
+At the end of generation the backend emits a signal to inform the frontend about it.
+
+When frontend receives end-of-generation signal, it reactivates the microphone to record next query.
 
 
 
