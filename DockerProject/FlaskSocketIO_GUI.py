@@ -9,38 +9,25 @@ from matplotlib.figure import Figure
 import matplotlib.ticker as ticker
 import queue
 import numpy as np
-
 # Sounddevice is not used in the implementation.
 # But it's needed for the system to work better with the sound card.
 import sounddevice as sd
-
-from PyQt5 import QtCore, QtWidgets,QtGui
+from PyQt5 import QtCore, QtWidgets
 from PyQt5 import uic
 from PyQt5.QtCore import pyqtSlot, QFile, QTextStream
 import time
-import os#, socket
+import os
 import wave, pyaudio
-# import traceback
-# import librosa
 import soundfile as sf
-
 #Needed to display the GUI in dark mode.
 import BreezeStyleSheets.breeze_resources
-
-#
-# from Models import *
 import speech_recognition as sr
-
 # transformers.pipeline helps initializing the microphone quicker.
 from transformers import pipeline
-
 import requests
 import json
 import socketio
-# import pickle
-# import struct
 import asyncio
-
 from functools import cached_property
 
 
@@ -70,11 +57,6 @@ class MplCanvas(FigureCanvas):
         fig.tight_layout()
 
 
-# class WorkerSignals(QtCore.QObject):
-#     """PyQt Signal for Worker.
-#     """
-#     finished = QtCore.pyqtSignal()
-
 class Worker(QtCore.QRunnable):
     """QRunnable, an interface for representing a task or piece of code that needs to be executed.
     In this project, it's used to update the bot status.
@@ -89,13 +71,11 @@ class Worker(QtCore.QRunnable):
         self.function = function
         self.args = args
         self.kwargs = kwargs
-        # self.signals = WorkerSignals()
 
     def run(self):
         """Executes the assigned task to this worker.
         """
         self.function(*self.args, **self.kwargs)
-        # self.signals.finished.emit()		
 
 
 
@@ -108,7 +88,6 @@ class AudioOutputWorkerSignals(QtCore.QObject):
     waiting = QtCore.pyqtSignal()
     status = QtCore.pyqtSignal(str)
 
-# www.pyshine.com
 class AudioOutputWorker(QtCore.QRunnable):
     """QRunnable to handle the generated audio data.
 
@@ -158,13 +137,7 @@ class AudioOutputWorker(QtCore.QRunnable):
                 else:
                     # If we haven't sent a signal to generate new audio data.
                     # And there's no audio being played.
-                    if not self.should_wait and not self.speaking:
-                        
-                        #Start of not needed
-                        #Emit a status signal to change BOT Status
-                        # self.signals.status.emit("Ich spreche  ... ")
-                        # print("######### I'm waiting #########\n")
-                        #end of not needed
+                    if not self.should_wait and not self.speaking:                        
                         
                         # Send a waiting signal to inform  the project, that we're
                         # waiting on new audio data.
@@ -195,7 +168,6 @@ class APISignals(QtCore.QObject):
     start = QtCore.pyqtSignal(str)
     finished = QtCore.pyqtSignal()
     result = QtCore.pyqtSignal(bytes)
-    # result = QtCore.pyqtSignal(str)
 
 class APIWorker(QtCore.QRunnable):
     """QRunnable to record audio from microphone and emit data to ClientWorker.
@@ -265,7 +237,6 @@ class Client(QtCore.QObject):
         self.sio.on("connect", self._handle_connect, namespace=None)
         self.sio.on("connect_error", self._handle_connect_error, namespace=None)
         self.sio.on("disconnect", self._handle_disconnect, namespace=None)
-        # self.sio.on("client_Unlock", self.client_unlock_ack, namespace=None)
         self.sio.on("voice reply", self.receiveAudio, namespace=None)
         self.sio.on("request", self.endReceiving, namespace=None)
 
@@ -285,8 +256,6 @@ class Client(QtCore.QObject):
         """Connect to socketIO.AsyncServer
         """
         await self.sio.connect(url="http://127.0.0.1:5000", transports="polling")
-        # await self.sio.connect(url="http://127.0.0.1:8080", transports="websocket")
-        # await self.sio.emit('/my_adsf_event', data={"recorded": "hello"})
         await self.sio.wait()
         
     async def disconnect(self):
@@ -312,8 +281,6 @@ class Client(QtCore.QObject):
         """
         self.error_ocurred.emit(data)
 
-    # def client_unlock_ack(self, data):
-    #     print("client_unlock_ack was reached")
 
     def receiveAudio(self, data):
         """Receives audio data from server and emits it to be added to audio queue.
@@ -321,8 +288,6 @@ class Client(QtCore.QObject):
         Args:
             data (bytes): Generated audio sent by the server.
         """
-        # print("receiveAudio was reached")
-        # print(data)
         self.data_changed.emit(data["voice_answer"])
     
     def endReceiving(self, logs_bytes):
@@ -332,7 +297,7 @@ class Client(QtCore.QObject):
         Args:
             logs_bytes (bytes): Execution times.
         """
-        print("endReceiving was reached")
+        # print("endReceiving was reached")
         self.end_receive.emit()
         self.recorded_times.emit(logs_bytes)
 
@@ -342,15 +307,12 @@ class Client(QtCore.QObject):
         Args:
             data (bytes): audio data.
         """
-        # print("here", data)
-        # data = "Hallo Vikuna, ich heiße Salim. Wie geht's dir?"
         request = {"recorded": data,
                 "start_time":time.time(),
                 "request_length": len(data)}
         
         await self.sio.emit('request', data=request)
         
-        # print("Request was sent")
 
     async def reset(self):
         """Emits to the server to reset the chat history.
@@ -477,7 +439,7 @@ class MainUI(QtWidgets.QMainWindow):
         wf = wave.open("welcome_message.wav")
         data = wf.readframes(-1)
         self.audio_queue.put_nowait(data)
-        print("Initialiazing is finished.\n")
+        # print("Initialiazing is finished.\n")
         if self.client_worker is None:
             self.client_worker = ClientWorker(self.client)
             self.client.data_changed.connect(self.updateAudioQueue)
@@ -532,7 +494,7 @@ class MainUI(QtWidgets.QMainWindow):
         """
         url = "http://localhost:5000/request"
         starting_time = time.time()
-        print("Request is sent.\n")
+        # print("Request is sent.\n")
         response = requests.get(url, data=data)
     
         a= response.content
@@ -555,7 +517,7 @@ class MainUI(QtWidgets.QMainWindow):
             file_path = os.path.join(dirname, file_name)
             with open(file_path, "w") as file:
                 json.dump(self.logs, file)
-                print(file_path)
+                # print(file_path)
 
     def getAudio(self):
         """Process the data in audio queue to be played and plotted.
@@ -630,9 +592,7 @@ class MainUI(QtWidgets.QMainWindow):
                     try:
                         audio_as_np_int16 = np.frombuffer(out, dtype=np.int16)
                         audio_as_np_float32 = audio_as_np_int16.astype(np.float32)
-                        
                         audio_normalised = audio_as_np_float32 / max_int16
-                        # print(audio_normalised.shape)
                         self.plot_queue.put_nowait(audio_normalised)
                         stream.write(out)
                         out = wf.readframes(CHUNK)
@@ -695,8 +655,10 @@ class MainUI(QtWidgets.QMainWindow):
                 self.ydata = self.plotdata[:]
                 self.canvas.axes.set_facecolor((0,0,0))
                 
+            
+            # To start plotting where the previous plot ended.
             if self.reference_plot is None:
-                plot_refs = self.canvas.axes.plot( self.ydata, color=(0,1,0.29), linewidth=self.params["linewidth"])
+                plot_refs = self.canvas.axes.plot(self.ydata, color=(0,1,0.29), linewidth=self.params["linewidth"])
                 self.reference_plot = plot_refs[0]	
             else:
                 self.reference_plot.set_ydata(self.ydata)
@@ -714,7 +676,7 @@ def main():
     params = {
 	"CHUNK": 1024,
     "samplerate": 24000,
-    "linewidth": 10
+    "linewidth": 8
 	}
     app = QtWidgets.QApplication(sys.argv)
     file = QFile(":/dark/stylesheet.qss")
