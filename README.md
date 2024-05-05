@@ -62,22 +62,18 @@ After executing the commands in Step 5, wait until all components are loaded.
 
 "Bot Status" field will show you the current state of the program:
 
-   - "INITIALIZING": The program is still loading.
-   - "IDLE": The program is initialized, and ready to be started.
-   - "SPEAKING": The generated speech is being played and plotted.
-   - "WAITING": Waiting on the microphone to record.
-   - "LISTENING": The program is ready to record a voice query.
-   - "PROCESSING": The query is being processed.
+   - "Ich schlafe ...": The program is initialized, and ready to be started.
+   - "Ich spreche ...": The generated speech is being played and plotted.
+   - "Ich höre zu ...": The program is ready to record a voice query.
+   - "Ich überlege was ich antworte ...": The query is being processed.
 
-Once everything is loaded "IDLE", you can start the program by pressing on the "Start" button.
+Once everything is loaded, you can start the program by pressing on the "Starte Gespräch" button.
 
-The program will not record any sound until "LISTENING" is shown, that's when you can query.
+The program will not record until "Ich höre zu ..." is shown, that's when you can query.
 
-"Stop" button will prevent next steps, but will not terminate the current step of execution.
+"Beende Gespräch" button will reset all parameters and take the program back to "Ich shclafe ..." state.
 
-"Reset" button will reset all parameters and take the program back to "IDLE" state.
-
-Everything must be closed from the terminals (Still working on closing).
+Everything must be closed from the terminals.
 
 
 
@@ -97,7 +93,7 @@ It also controls both microphone and speaker to record an play audio.
 
 ## How it works:
 
-When "Start" is clicked, the frontend starts with playing a pre-recorded welcome message and connects to the backend through socketIO client.
+When "Starte Gespräch" is clicked, the frontend starts with playing a pre-recorded welcome message and connects to the backend through socketIO client.
 Then the microphone is initialized and records user's query.
 
 After an audio is recorded, it will be sent to the Flask-SocketIO server (backend) as GET request.
@@ -111,9 +107,9 @@ The backend receives the request on a Flask route, creates a new thread to proce
 
 The frontend reformat and normalize those bytes to be played and plotted synchronously.
 
-At the end of generation the backend emits a signal to inform the frontend about it.
+At the end of generation the backend emits a signal to inform the frontend.
 
-When frontend receives end-of-generation signal, it reactivates the microphone to record next query.
+When frontend receives end-of-generation signal, it reactivates the microphone to record the next request.
 
 
 
