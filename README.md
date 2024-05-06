@@ -60,7 +60,7 @@ After executing the commands in Step 5, wait until all components are loaded.
 
 //Link to GUI screenshot
 
-"Bot Status" field will show you the current state of the program:
+In the middle of the screen a text field will inform you about the current state of the program:
 
    - "Ich schlafe ...": The program is initialized, and ready to be started.
    - "Ich spreche ...": The generated speech is being played and plotted.
@@ -73,12 +73,12 @@ The program will not record until "Ich höre zu ..." is shown, that's when you c
 
 "Beende Gespräch" button will reset all parameters and take the program back to "Ich shclafe ..." state.
 
-Everything must be closed from the terminals.
+Everything must be closed from terminals.
 
 
 
 ## Architicture:
-The project is developed using python Flask-SocketIO with front- and backend.
+The project is a Websocket server with RestAPI using python Flask-SocketIO with front- and backend.
 
 - Frontend:
    - Holds GUI designed using PyQt5.
