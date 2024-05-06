@@ -342,13 +342,15 @@ class MainUI(QtWidgets.QMainWindow):
         # self.resize(888, 600)
         
         #Change the font size of BOT status
-        self.label_6.setStyleSheet(''' font-size: 150px; ''')
+        self.label_6.setStyleSheet(''' font-size: 150px; color: Red;''')
+
         self.label_6.setMargin(75)
         self.label_6.setIndent(75)
         
         self.buttonsLayout.setContentsMargins(200, 200, 200, 200)
 
-        self.startButton.resize(100,100)
+        self.startButton.setStyleSheet('QPushButton {background-color: #555555; font-size: 50px; color: white;}')
+        self.resetButton.setStyleSheet('QPushButton {background-color: #555555; font-size: 50px; color: white;}')
         # self.gridLayout_5.setVerticalSpacing(5)
         
         # QThreadPools are used to run QRunnable objects.
@@ -469,7 +471,14 @@ class MainUI(QtWidgets.QMainWindow):
         Args:
             text (string): Message to be displayed.
         """
+        
         self.label_6.setText(text)
+        if text == "Ich höre zu  ... ":
+            self.label_6.setStyleSheet(''' font-size: 150px; color: #00FF00;''')
+        else:
+            self.label_6.setStyleSheet(''' font-size: 150px; color: Red;''')
+
+        
     
     def updateStatus(self, text):
         """Change the displayed message.
@@ -695,10 +704,10 @@ def main():
     "linewidth": 8
 	}
     app = QtWidgets.QApplication(sys.argv)
-    file = QFile(":/dark/stylesheet.qss")
-    file.open(QFile.ReadOnly | QFile.Text)
-    stream = QTextStream(file)
-    app.setStyleSheet(stream.readAll())
+    # file = QFile(":/dark/stylesheet.qss")
+    # file.open(QFile.ReadOnly | QFile.Text)
+    # stream = QTextStream(file)
+    # app.setStyleSheet(stream.readAll())
     mainWindow = MainUI(params=params)
     mainWindow.showMaximized()
     app.exec_()
