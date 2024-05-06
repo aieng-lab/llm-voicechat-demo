@@ -339,12 +339,17 @@ class MainUI(QtWidgets.QMainWindow):
         
         # Load a pre-designed GUI.
         self.ui = uic.loadUi(main_path+'/main.ui',self)
-        self.resize(888, 600)
+        # self.resize(888, 600)
         
         #Change the font size of BOT status
-        self.label_6.setStyleSheet(''' font-size: 50px; ''')
+        self.label_6.setStyleSheet(''' font-size: 150px; ''')
+        self.label_6.setMargin(75)
+        self.label_6.setIndent(75)
         
-        self.gridLayout_5.setVerticalSpacing(5)
+        self.buttonsLayout.setContentsMargins(200, 200, 200, 200)
+
+        self.startButton.resize(100,100)
+        # self.gridLayout_5.setVerticalSpacing(5)
         
         # QThreadPools are used to run QRunnable objects.
         self.threadpool = QtCore.QThreadPool()
@@ -360,7 +365,7 @@ class MainUI(QtWidgets.QMainWindow):
         self.canvas = MplCanvas(width=5, height=4, dpi=100)
         self.ui.gridLayout_4.addWidget(self.canvas, 2, 1, 1, 1)
         self.reference_plot = None
-        
+        self.mic = False
         self.window_length = 1000
         self.downsample = 1
         self.channels = [1]
@@ -481,9 +486,14 @@ class MainUI(QtWidgets.QMainWindow):
         self.init=False
         api_worker = APIWorker()
         api_worker.signals.start.connect(self.displayStatus)
+        api_worker.signals.start.connect(self.changeColor)
         api_worker.signals.result.connect(self.request)
+        api_worker.signals.finished.connect(self.changeColor)
 
         self.threadpool.start(api_worker)
+
+    def changeColor(self):
+        self.mic = not self.mic
 
     
     def request(self, data):
@@ -615,12 +625,16 @@ class MainUI(QtWidgets.QMainWindow):
         Returns:
             numpy.ndarray: plotting data.
         """
+        if self.mic:
+            color = (0,1,0.29)
+        else:
+            color='red'
         if not self.plot_queue.empty():
             audio_normalised = self.plot_queue.get_nowait()
-            return audio_normalised
+            return audio_normalised, color
         else:
             self.speaker_worker.speaking=False
-            return np.zeros((self.CHUNK,len(self.channels)))
+            return np.zeros((self.CHUNK,len(self.channels))), color
     
     def startSpeakerWorker(self):
         """Change both idle and waiting states of AudiooutputWorker.
@@ -646,7 +660,7 @@ class MainUI(QtWidgets.QMainWindow):
         try:
             if  self.plotting is True:
                 try: 
-                    self.data = self.generatePlotData()
+                    self.data, color = self.generatePlotData()
                 except:
                     pass
                 shift = len(self.data)
@@ -655,13 +669,15 @@ class MainUI(QtWidgets.QMainWindow):
                 self.ydata = self.plotdata[:]
                 self.canvas.axes.set_facecolor((0,0,0))
                 
-            
+
             # To start plotting where the previous plot ended.
             if self.reference_plot is None:
                 plot_refs = self.canvas.axes.plot(self.ydata, color=(0,1,0.29), linewidth=self.params["linewidth"])
+                # plot_refs = self.canvas.axes.plot(self.ydata, color=color, linewidth=self.params["linewidth"])
                 self.reference_plot = plot_refs[0]	
             else:
                 self.reference_plot.set_ydata(self.ydata)
+                # self.reference_plot.set_color(color)
             
             self.canvas.axes.yaxis.grid(True,linestyle='--')
             start, end = self.canvas.axes.get_ylim()

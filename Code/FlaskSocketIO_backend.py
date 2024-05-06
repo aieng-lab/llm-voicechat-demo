@@ -6,6 +6,7 @@ import time
 from flask import Flask, request
 from flask_socketio import SocketIO
 import threading
+import logging
 
 main_path = os.path.dirname(os.path.realpath(__file__))
 logs_path = main_path + "/logs/"
@@ -19,6 +20,9 @@ ttt_model = None
 
 app = Flask(__name__)
 sio = SocketIO(app, async_mode = "threading")
+
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 entry_length = 300
 
