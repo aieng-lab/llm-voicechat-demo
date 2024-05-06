@@ -87,11 +87,11 @@ The project is developed using python Flask-SocketIO with front- and backend.
    - Uses QRunnable to work as threads.
 - Backend:
    - Holds The FlaskSocketIO AsyncServer to communicate with frontend.
-   - Speech-to-Text model.
-   - Text-to-Text model.
-   - Text-to-Speech model.
-   - The server runs on the main thread.
-   - When a request is received, a new thread is created to preocess and respond to it
+   - Holds Speech-to-Text model.
+   - Holds Text-to-Text model.
+   - Holds Text-to-Speech model.
+   - Runs the server on the main thread.
+   - When a request is received, a new thread is created to preocess and send back response.
 
 ## How it works:
 
