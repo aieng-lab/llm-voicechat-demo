@@ -5,7 +5,7 @@ from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
 from transformers import AutoProcessor, AutoModelForSpeechSeq2Seq
 from transformers import WhisperProcessor
 import argparse
-from fastchat.conversation import conv_templates, SeparatorStyle
+from fastchat.conversation import conv_templates, SeparatorStyle, register_conv_template, Conversation
 import numpy as np
 from TTS.api import TTS
 
@@ -302,12 +302,26 @@ class FastChatModel(TTTStrategy):
                         num_gpus=1,
                         load_8bit=True,
                         # conv_template="vicuna_de_v1.1",
-                        conv_template='vicuna_v1.1',
+                        # conv_template='vicuna_v1.1',
+                        conv_template='custom_vicuna',
                         temperature=0.7,
                         max_new_tokens=512,
                         debug=False)
         self.args = argparse.Namespace(**self.args)
         self.model, self.tokenizer = self.load_model(self.args.model_name, self.args.device, self.args.num_gpus, self.args.load_8bit)
+        # Vicuna v1.1 template
+        register_conv_template(
+            Conversation(
+                name="custom_vicuna",
+                system_message="""A chat between a curious user and an artificial intelligence assistant.
+                                The assistant gives helpful, detailed, and polite answers to the user's questions.
+                                The assistant always answers in German.""",
+                roles=("USER", "ASSISTANT"),
+                sep_style=SeparatorStyle.ADD_COLON_TWO,
+                sep=" ",
+                sep2="</s>",
+            )
+        )
         # Chat
         self.conv = conv_templates[self.args.conv_template].copy()
         self.welcome_message = "Hallo, Ich heiße Alvi, wie kann ich dir helfen?"
