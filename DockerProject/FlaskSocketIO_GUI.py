@@ -342,17 +342,18 @@ class MainUI(QtWidgets.QMainWindow):
         # self.resize(888, 600)
         
         #Change the font size of BOT status
-        self.label_6.setStyleSheet(''' font-size: 150px; color: Red;''')
+        self.label_6.setStyleSheet(''' font-size: 100px; color: Red;''')
 
-        self.label_6.setMargin(75)
-        self.label_6.setIndent(75)
-        
-        self.buttonsLayout.setContentsMargins(200, 200, 200, 200)
+        # self.label_6.setMargin(30)
+        self.label_6.setIndent(60)
+        #Left, above, right, under
+        self.buttonsLayout.setContentsMargins(120, 500, 120, 0)
 
         self.startButton.setStyleSheet('QPushButton {background-color: #555555; font-size: 50px; color: white;}')
         self.resetButton.setStyleSheet('QPushButton {background-color: #555555; font-size: 50px; color: white;}')
         # self.gridLayout_5.setVerticalSpacing(5)
-        
+        # self.showMaximized()
+        self.showFullScreen()
         # QThreadPools are used to run QRunnable objects.
         self.threadpool = QtCore.QThreadPool()
         self.client_pool = QtCore.QThreadPool()		
@@ -474,9 +475,9 @@ class MainUI(QtWidgets.QMainWindow):
         
         self.label_6.setText(text)
         if text == "Ich höre zu  ... ":
-            self.label_6.setStyleSheet(''' font-size: 150px; color: #00FF00;''')
+            self.label_6.setStyleSheet(''' font-size: 100px; color: #00FF00;''')
         else:
-            self.label_6.setStyleSheet(''' font-size: 150px; color: Red;''')
+            self.label_6.setStyleSheet(''' font-size: 100px; color: Red;''')
 
         
     
@@ -681,7 +682,8 @@ class MainUI(QtWidgets.QMainWindow):
 
             # To start plotting where the previous plot ended.
             if self.reference_plot is None:
-                plot_refs = self.canvas.axes.plot(self.ydata, color=(0,1,0.29), linewidth=self.params["linewidth"])
+                # plot_refs = self.canvas.axes.plot(self.ydata, color=(0,1,0.29), linewidth=self.params["linewidth"])
+                plot_refs = self.canvas.axes.plot(self.ydata, color=self.params["color"], linewidth=self.params["linewidth"])
                 # plot_refs = self.canvas.axes.plot(self.ydata, color=color, linewidth=self.params["linewidth"])
                 self.reference_plot = plot_refs[0]	
             else:
@@ -701,7 +703,11 @@ def main():
     params = {
 	"CHUNK": 1024,
     "samplerate": 24000,
-    "linewidth": 8
+    "linewidth": 8,
+    "color": "#04d9ff"
+    # "color": "#0BBAE2"
+    # "color": "#2CC3FF"
+    # "color": 'blue'
 	}
     app = QtWidgets.QApplication(sys.argv)
     # file = QFile(":/dark/stylesheet.qss")
@@ -709,7 +715,8 @@ def main():
     # stream = QTextStream(file)
     # app.setStyleSheet(stream.readAll())
     mainWindow = MainUI(params=params)
-    mainWindow.showMaximized()
+    # mainWindow.showMaximized()
+    # mainWindow.showFullScreen()
     app.exec_()
 
 
