@@ -20,7 +20,7 @@ import os
 import wave, pyaudio
 import soundfile as sf
 #Needed to display the GUI in dark mode.
-import BreezeStyleSheets.breeze_resources
+#import BreezeStyleSheets.breeze_resources
 import speech_recognition as sr
 # transformers.pipeline helps initializing the microphone quicker.
 from transformers import pipeline
