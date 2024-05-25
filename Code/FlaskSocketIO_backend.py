@@ -61,15 +61,15 @@ def disconnect():
     print("Client disconnected")
 
 
-@sio.on('reset', namespace="/")
-def reset(sid):
-    """Triggered on reset emit. Clears chat history.
+@app.route("/reset", methods=["POST", "GET"])
+def reset():
+    """Triggered on reset request. Clears chat history.
     Args:
         sid (int): Clients id, assigned automatically by the socket server.
     """
     ttt_model.clear_history()
-    print(" \nChat history is reset. \n#####")
-    
+    print(" \nChat history is reset. \n#####")    
+    return "Reset"
 
 def generateAnswer(voice_request):
     """Takes audio bytes as input and processes it follows: 
@@ -88,7 +88,7 @@ def generateAnswer(voice_request):
     # print("########### generating ###########")
     transcribtion = stt_model.run(voice_request)
     transcribtion_time = time.time() - current_time
-    # print(transcribtion)
+    print(transcribtion)
     # print(voice_query)
     entry = ""
     response = []
@@ -98,9 +98,9 @@ def generateAnswer(voice_request):
     for out in ttt_model.run(transcribtion.strip()):
         ttt_times.append(time.time()-current_time)
         if out == "END":
-            # print("\n##############\n")
-            # print(entry)
-            # print("\n##############\n")
+            print("\n##############\n")
+            print(entry)
+            print("\n##############\n")
             current_time = time.time()
 
             voice_answer = tts_model.run(entry)
@@ -114,12 +114,12 @@ def generateAnswer(voice_request):
             sio.emit("voice reply", data)
         else:
             if (len(entry) + len(out) + 1) >= entry_length:
-                # print("\n##############\n")
-                # print(entry)
-                # print("\n##############\n")
+                print("\n##############\n")
+                print(entry)
+                print("\n##############\n")
                 current_time = time.time()
                 if len(entry)<1:
-                    entry = "Entschuldigung, ich konnte deine Anfrage nicht beantworten"
+                    entry = "Entschuldigung, ich konnte deine Anfrage nicht beantworten. "
                     continue
                 voice_answer = tts_model.run(entry)
                 tts_times.append(time.time()-current_time)
@@ -152,7 +152,7 @@ def receive():
         (dict): Resonse message containing the emitting time.
     """
     received_time = time.time()
-    # print("\nRequest is recieved\n")
+    print("\nRequest is recieved\n")
     bytes_data = request.get_data()
     voice_query = bytes_data
     t = threading.Thread(target=generateAnswer, daemon=True, args=[voice_query])

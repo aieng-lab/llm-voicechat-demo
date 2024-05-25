@@ -515,8 +515,8 @@ class FastChatModel(TTTStrategy):
         """
         self.conv.messages.clear()
         self.conv.append_message(self.conv.roles[1], self.welcome_message)
-        self.shift = 3
-    
+        self.shift = 0
+        
     def clear_cache(self):
         del self.model
         self.model = None
@@ -552,7 +552,11 @@ class XTTS_V2(TTSStrategy):
         """        
         # print("Generating started \n")        
         # speed=2.0, emotion="Sad"
-        audio_list = self.model.tts(text=text, speaker_wav=self.voice_preset)
-        data = np.asarray(audio_list, dtype=np.float32)
-        # print("Generating finished\n")
-        return data
+        try:
+            audio_list = self.model.tts(text=text, speaker_wav=self.voice_preset)
+            data = np.asarray(audio_list, dtype=np.float32)
+            # print("Generating finished\n")
+            return data
+        except Exception as e:
+            print(e)
+            return np.array([], dtype=np.float32)

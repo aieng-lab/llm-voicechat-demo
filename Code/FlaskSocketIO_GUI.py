@@ -437,6 +437,8 @@ class MainUI(QtWidgets.QMainWindow):
         self.audio_queue = queue.Queue()
         self.plotdata =  np.zeros((self.length,len(self.channels)))
         #Change BOT Status
+        url = "http://localhost:5000/reset"
+        response = requests.get(url, data={})
         self.displayStatus("Ich schlafe  ... ")
     
     def start(self):
