@@ -341,7 +341,7 @@ class MainUI(QtWidgets.QMainWindow):
         # Load a pre-designed GUI.
         # self.ui = uic.loadUi(main_path+'/main.ui',self)
         self.ui = Ui_MainWindow()
-        self.ui.setupUi(self)
+        self.ui.setupUi(self, params["window_size"])
         # self.resize(888, 600)
         
         #Change the font size of BOT status
@@ -369,7 +369,7 @@ class MainUI(QtWidgets.QMainWindow):
         self.audio_queue = queue.Queue()
         
         self.canvas = MplCanvas(width=5, height=4, dpi=100)
-        self.ui.gridLayout_4.addWidget(self.canvas, 2, 1, 1, 1)
+        self.ui.gridLayout_2.addWidget(self.canvas, 2, 1, 1, 1)
         self.reference_plot = None
         self.mic = False
         self.window_length = 1000
@@ -477,10 +477,11 @@ class MainUI(QtWidgets.QMainWindow):
         """
         
         self.ui.label_6.setText(text)
+        self.status_size = int(0.03 * self.params["window_size"].width())
         if text == "Ich höre zu  ... ":
-            self.ui.label_6.setStyleSheet(''' font-size: 100px; color: #00FF00;''')
+            self.ui.label_6.setStyleSheet(f''' font-size: {self.status_size}px; color: #00FF00;''')
         else:
-            self.ui.label_6.setStyleSheet(''' font-size: 100px; color: Red;''')
+            self.ui.label_6.setStyleSheet(f''' font-size: {self.status_size}px; color: Red;''')
 
         
     
@@ -713,6 +714,8 @@ def main():
     # "color": 'blue'
 	}
     app = QtWidgets.QApplication(sys.argv)
+    screen = app.primaryScreen()
+    params["window_size"] = screen.size()
     # file = QFile(":/dark/stylesheet.qss")
     # file.open(QFile.ReadOnly | QFile.Text)
     # stream = QTextStream(file)

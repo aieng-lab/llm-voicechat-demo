@@ -1,5 +1,7 @@
 #local_experiments
 Code/FlaskSocketIO_GUI_local.py
+Code/main_local.ui
+Code/UIDesign.py
 
 #ssh_connection
 ssh_connection.txt

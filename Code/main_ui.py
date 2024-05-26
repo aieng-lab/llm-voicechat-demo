@@ -11,45 +11,36 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 
-class Ui_MainWindow(object):
-    def __init__(self):
-        #width, height
-        self.window_size = (1920, 1080)
-        self.status_size = int(0.05 * self.window_size[0])
-        self.button_text_size = int(0.5 * self.status_size)
+class Ui_MainWindow(object):        
     
-    def setupUi(self, MainWindow):
+    def setupUi(self, MainWindow, window_size):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(self.window_size[0], self.window_size[1])
-        self.centralwidget = QtWidgets.QWidget(MainWindow)
-        self.centralwidget.setStyleSheet("background-color: rgb(0, 0, 0);")
-        self.centralwidget.setObjectName("centralwidget")
-        self.gridLayout_5 = QtWidgets.QGridLayout(self.centralwidget)
-        self.gridLayout_5.setObjectName("gridLayout_5")
-        self.gridLayout_4 = QtWidgets.QGridLayout()
-        self.gridLayout_4.setObjectName("gridLayout_4")
-        #The spacing area at the top between window bar and plotting figure
-        # spacerItem = QtWidgets.QSpacerItem(self.window_size[1], #width
-        #                                    int(0.01 * self.window_size[1]), #height
-        #                                    QtWidgets.QSizePolicy.Expanding, 
-        #                                    QtWidgets.QSizePolicy.Minimum)
+        self.window_size = (window_size.width(), window_size.height())
+        self.status_size = int(0.03 * self.window_size[0])
+        self.button_text_size = int(0.5 * self.status_size)
         
-        spacerItem = QtWidgets.QSpacerItem(MainWindow.width(), #width
-                                    int(0.01 * MainWindow.height()), #height
-                                    QtWidgets.QSizePolicy.Expanding, 
-                                    QtWidgets.QSizePolicy.Minimum)
-        self.gridLayout_4.addItem(spacerItem, 1, 1, 1, 1)
+        MainWindow.resize(self.window_size[0], self.window_size[1])
+        #Main widget (background)
+        self.centralwidget = QtWidgets.QWidget(MainWindow)
+        self.centralwidget.setStyleSheet("background-color: rgb(0, 0, 0);border: 0px;")
+        self.centralwidget.setObjectName("centralwidget")
+        #Main layout
+        self.gridLayout_1 = QtWidgets.QGridLayout(self.centralwidget)
+        self.gridLayout_1.setObjectName("gridLayout_1")
+        
+        self.gridLayout_2 = QtWidgets.QGridLayout()
+        self.gridLayout_2.setObjectName("gridLayout_2")
         
         self.groupBox = QtWidgets.QGroupBox(self.centralwidget)
-        self.groupBox.setStyleSheet("background-color: rgb(0, 0, 0);")
         self.groupBox.setObjectName("groupBox")
         
         self.verticalLayout = QtWidgets.QVBoxLayout(self.groupBox)
         self.verticalLayout.setObjectName("verticalLayout")
         
-        self.gridLayout = QtWidgets.QGridLayout()
-        self.gridLayout.setAlignment(QtCore.Qt.AlignCenter)
-        self.gridLayout.setObjectName("gridLayout")
+        
+        self.gridLayout_3= QtWidgets.QGridLayout()
+        self.gridLayout_3.setAlignment(QtCore.Qt.AlignCenter)
+        self.gridLayout_3.setObjectName("gridLayout_3")
         
         self.label_6 = QtWidgets.QLabel(self.groupBox)
         self.label_6.setObjectName("label_6")
@@ -58,11 +49,11 @@ class Ui_MainWindow(object):
         self.label_6.setIndent(60)
         ###
         
-        self.gridLayout.addWidget(self.label_6, 2, 0, 1, 1)
+        self.gridLayout_3.addWidget(self.label_6, 2, 0, 1, 1)
         
-        self.verticalLayout.addLayout(self.gridLayout)
+        self.verticalLayout.addLayout(self.gridLayout_3)
         
-        self.gridLayout_4.addWidget(self.groupBox, 3, 1, 1, 1)
+        self.gridLayout_2.addWidget(self.groupBox, 3, 1, 1, 1)
         
         self.groupBox1 = QtWidgets.QGroupBox(self.centralwidget)
         self.groupBox1.setObjectName("groupBox1")
@@ -74,12 +65,11 @@ class Ui_MainWindow(object):
         self.buttonsLayout.setObjectName("buttonsLayout")
         ###
         #Left, above, right, under
-        # self.buttonsLayout.setContentsMargins(120, 500, 120, 0)
-        self.buttonsLayout.setContentsMargins(int(0.1 * self.window_size[0]), int(0.5 * self.window_size[1]), int(0.1 * self.window_size[0]), 0)
+        self.buttonsLayout.setContentsMargins(int(0.1 * self.window_size[0]), int(0.05 * self.window_size[1]), int(0.1 * self.window_size[0]), 0)
         ###
         
-        self.gridLayout_6 = QtWidgets.QGridLayout()
-        self.gridLayout_6.setObjectName("gridLayout_6")
+        self.gridLayout_4 = QtWidgets.QGridLayout()
+        self.gridLayout_4.setObjectName("gridLayout_4")
         
         self.startButton = QtWidgets.QPushButton(self.groupBox1)
         self.startButton.setObjectName("startButton")
@@ -87,7 +77,7 @@ class Ui_MainWindow(object):
         self.startButton.setStyleSheet(f'background-color: #555555; font-size: {self.button_text_size}px; color: white;')
         ###
 
-        self.gridLayout_6.addWidget(self.startButton, 0, 0, 1, 1)
+        self.gridLayout_4.addWidget(self.startButton, 0, 0, 1, 1)
         
         self.resetButton = QtWidgets.QPushButton(self.groupBox1)
         self.resetButton.setObjectName("resetButton")
@@ -95,25 +85,16 @@ class Ui_MainWindow(object):
         self.resetButton.setStyleSheet(f'background-color: #555555; font-size: {self.button_text_size}px; color: white;')
         ###
         
-        self.gridLayout_6.addWidget(self.resetButton, 0, 1, 1, 1)
+        self.gridLayout_4.addWidget(self.resetButton, 0, 1, 1, 1)
         
-        self.buttonsLayout.addLayout(self.gridLayout_6)
+        self.buttonsLayout.addLayout(self.gridLayout_4)
         
         self.verticalLayout1.addLayout(self.buttonsLayout)
         
-        self.gridLayout_4.addWidget(self.groupBox1, 4, 1, 1, 1)
+        self.gridLayout_2.addWidget(self.groupBox1, 4, 1, 1, 1)
         
-        self.label = QtWidgets.QLabel(self.centralwidget)
-        self.label.setText("")
-        self.label.setPixmap(QtGui.QPixmap("Snapshot 2022-Jan-15 at 11.55.30 AM.png"))
-        self.label.setScaledContents(False)
-        self.label.setAlignment(QtCore.Qt.AlignCenter)
-        self.label.setIndent(3)
-        self.label.setObjectName("label")
         
-        self.gridLayout_4.addWidget(self.label, 0, 1, 1, 1)
-        
-        self.gridLayout_5.addLayout(self.gridLayout_4, 0, 0, 1, 1)
+        self.gridLayout_1.addLayout(self.gridLayout_2, 0, 0, 1, 1)
         
         MainWindow.setCentralWidget(self.centralwidget)
 
