@@ -29,6 +29,7 @@ import json
 import socketio
 import asyncio
 from functools import cached_property
+from main_ui import Ui_MainWindow
 
 
 #Get this files path.
@@ -338,22 +339,24 @@ class MainUI(QtWidgets.QMainWindow):
         QtWidgets.QMainWindow.__init__(self)
         
         # Load a pre-designed GUI.
-        self.ui = uic.loadUi(main_path+'/main.ui',self)
+        # self.ui = uic.loadUi(main_path+'/main.ui',self)
+        self.ui = Ui_MainWindow()
+        self.ui.setupUi(self)
         # self.resize(888, 600)
         
         #Change the font size of BOT status
-        self.label_6.setStyleSheet(''' font-size: 100px; color: Red;''')
+        # self.ui.label_6.setStyleSheet(''' font-size: 100px; color: Red;''')
 
         # self.label_6.setMargin(30)
-        self.label_6.setIndent(60)
+        # self.ui.label_6.setIndent(60)
         #Left, above, right, under
-        self.buttonsLayout.setContentsMargins(120, 500, 120, 0)
+        # self.ui.buttonsLayout.setContentsMargins(120, 500, 120, 0)
 
-        self.startButton.setStyleSheet('QPushButton {background-color: #555555; font-size: 50px; color: white;}')
-        self.resetButton.setStyleSheet('QPushButton {background-color: #555555; font-size: 50px; color: white;}')
+        # self.ui.startButton.setStyleSheet('QPushButton {background-color: #555555; font-size: 50px; color: white;}')
+        # self.ui.resetButton.setStyleSheet('QPushButton {background-color: #555555; font-size: 50px; color: white;}')
         # self.gridLayout_5.setVerticalSpacing(5)
-        # self.showMaximized()
-        self.showFullScreen()
+        self.showMaximized()
+        # self.showFullScreen()
         # QThreadPools are used to run QRunnable objects.
         self.threadpool = QtCore.QThreadPool()
         self.client_pool = QtCore.QThreadPool()		
@@ -388,8 +391,8 @@ class MainUI(QtWidgets.QMainWindow):
         self.stopped = False
         self.speaking_allowed =True
     
-        self.startButton.setEnabled(False)
-        self.resetButton.setEnabled(False)
+        self.ui.startButton.setEnabled(False)
+        self.ui.resetButton.setEnabled(False)
         
         self.status_worker = None
         self.r = sr.Recognizer()
@@ -408,12 +411,12 @@ class MainUI(QtWidgets.QMainWindow):
 
         
  
-        self.startButton.clicked.connect(self.start)
-        self.resetButton.clicked.connect(self.reset)
+        self.ui.startButton.clicked.connect(self.start)
+        self.ui.resetButton.clicked.connect(self.reset)
 
 
-        self.startButton.setEnabled(True)
-        self.resetButton.setEnabled(True)
+        self.ui.startButton.setEnabled(True)
+        self.ui.resetButton.setEnabled(True)
         
     def reset(self):
         """Reset the project back to the starting point.
@@ -422,7 +425,7 @@ class MainUI(QtWidgets.QMainWindow):
         if not self.speaker_worker is None:
             self.speaker_worker.stop_running()
 
-        self.label_6.setText("Ich würde gestoppt  ... ")
+        self.ui.label_6.setText("Ich würde gestoppt  ... ")
         self.stopped = True
         self.speaking_allowed = False
         self.speaker_worker = None
@@ -437,8 +440,6 @@ class MainUI(QtWidgets.QMainWindow):
         self.audio_queue = queue.Queue()
         self.plotdata =  np.zeros((self.length,len(self.channels)))
         #Change BOT Status
-        url = "http://localhost:5000/reset"
-        response = requests.get(url, data={})
         self.displayStatus("Ich schlafe  ... ")
     
     def start(self):
@@ -475,11 +476,11 @@ class MainUI(QtWidgets.QMainWindow):
             text (string): Message to be displayed.
         """
         
-        self.label_6.setText(text)
+        self.ui.label_6.setText(text)
         if text == "Ich höre zu  ... ":
-            self.label_6.setStyleSheet(''' font-size: 100px; color: #00FF00;''')
+            self.ui.label_6.setStyleSheet(''' font-size: 100px; color: #00FF00;''')
         else:
-            self.label_6.setStyleSheet(''' font-size: 100px; color: Red;''')
+            self.ui.label_6.setStyleSheet(''' font-size: 100px; color: Red;''')
 
         
     
