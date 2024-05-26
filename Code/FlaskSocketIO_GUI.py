@@ -12,7 +12,7 @@ import numpy as np
 # Sounddevice is not used in the implementation.
 # But it's needed for the system to work better with the sound card.
 import sounddevice as sd
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5 import uic
 from PyQt5.QtCore import pyqtSlot, QFile, QTextStream
 import time
@@ -342,21 +342,9 @@ class MainUI(QtWidgets.QMainWindow):
         # self.ui = uic.loadUi(main_path+'/main.ui',self)
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self, params["window_size"])
-        # self.resize(888, 600)
-        
-        #Change the font size of BOT status
-        # self.ui.label_6.setStyleSheet(''' font-size: 100px; color: Red;''')
-
-        # self.label_6.setMargin(30)
-        # self.ui.label_6.setIndent(60)
-        #Left, above, right, under
-        # self.ui.buttonsLayout.setContentsMargins(120, 500, 120, 0)
-
-        # self.ui.startButton.setStyleSheet('QPushButton {background-color: #555555; font-size: 50px; color: white;}')
-        # self.ui.resetButton.setStyleSheet('QPushButton {background-color: #555555; font-size: 50px; color: white;}')
-        # self.gridLayout_5.setVerticalSpacing(5)
         self.showMaximized()
         # self.showFullScreen()
+        
         # QThreadPools are used to run QRunnable objects.
         self.threadpool = QtCore.QThreadPool()
         self.client_pool = QtCore.QThreadPool()		
@@ -714,15 +702,11 @@ def main():
     # "color": 'blue'
 	}
     app = QtWidgets.QApplication(sys.argv)
-    screen = app.primaryScreen()
-    params["window_size"] = screen.size()
-    # file = QFile(":/dark/stylesheet.qss")
-    # file.open(QFile.ReadOnly | QFile.Text)
-    # stream = QTextStream(file)
-    # app.setStyleSheet(stream.readAll())
+    # screen = app.primaryScreen()
+    # params["window_size"] = screen.size()
+    
+    params["window_size"] = QtWidgets.QDesktopWidget().screenGeometry(-1)
     mainWindow = MainUI(params=params)
-    # mainWindow.showMaximized()
-    # mainWindow.showFullScreen()
     app.exec_()
 
 
