@@ -705,15 +705,8 @@ class MainUI(QtWidgets.QMainWindow):
         # confirmation = QtWidgets.QMessageBox.question(self, "Confirmation", "Are you sure you want to close the application?", QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)    
         
 def main():
-    params = {
-	"CHUNK": 1024,
-    "samplerate": 24000,
-    "linewidth": 8,
-    "color": "#04d9ff"
-    # "color": "#0BBAE2"
-    # "color": "#2CC3FF"
-    # "color": 'blue'
-	}
+    with open(main_path+'/params.json') as params_file:
+        params = json.load(params_file)
     app = QtWidgets.QApplication(sys.argv)
     # screen = app.primaryScreen()
     # params["window_size"] = screen.size()

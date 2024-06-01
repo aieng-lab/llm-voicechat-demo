@@ -1,0 +1,7 @@
+{"CHUNK": 1024, 
+"samplerate": 24000, 
+"linewidth": 8,
+"color": "#04d9ff",
+"stt_model": "WhisperLargeV2",
+"ttt_model": "FastChatModel",
+"tts_model": "XTTS_V2"}

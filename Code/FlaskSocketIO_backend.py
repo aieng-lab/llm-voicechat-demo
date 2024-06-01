@@ -26,7 +26,19 @@ log.setLevel(logging.ERROR)
 
 entry_length = 300
 
-def load_models():
+
+def get_instance(name, args=None):
+    Klass = globals()[name]
+    if args is not None:
+        instance = Klass(args)
+    else:
+        instance =Klass()
+    return instance
+
+with open(main_path+'/params.json') as params_file:
+    params = json.load(params_file)
+    
+def load_models(params):
     """Loads all there models: Speech-to-Text, Text-to-Text, Text-to-Speech models.
     Returns:
         (WhisperLargeV2): Speech-to-Text model.
@@ -34,15 +46,18 @@ def load_models():
         (XTTS_V2): Text-to-Speech models.
     """
     # print("\nLoading Whisper ...\n")
-    stt_model = WhisperLargeV2()
+    # stt_model = WhisperLargeV2()
+    stt_model = get_instance(params["stt_model"])
     # print("\nLoading FastChat ...\n")
-    ttt_model = FastChatModel()
+    # ttt_model = FastChatModel()
+    ttt_model = get_instance(params["ttt_model"])
     # print("\nLoading XTTS_V2 ...\n")
-    tts_model = XTTS_V2()
+    # tts_model = XTTS_V2()
+    tts_model = get_instance(params["tts_model"])
     return stt_model, ttt_model, tts_model
 
 
-stt_model, ttt_model, tts_model = load_models()
+stt_model, ttt_model, tts_model = load_models(params)
 
 
 @sio.on("connect")
