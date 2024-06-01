@@ -50,7 +50,7 @@ def load_models(params):
     stt_model = get_instance(params["stt_model"])
     # print("\nLoading FastChat ...\n")
     # ttt_model = FastChatModel()
-    ttt_model = get_instance(params["ttt_model"])
+    ttt_model = get_instance(params["ttt_model"], params["prompt"])
     # print("\nLoading XTTS_V2 ...\n")
     # tts_model = XTTS_V2()
     tts_model = get_instance(params["tts_model"])

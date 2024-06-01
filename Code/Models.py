@@ -295,7 +295,7 @@ class FastChatModel(TTTStrategy):
 
         conv: conversation template.
     """
-    def __init__(self):
+    def __init__(self, prompt=""):
         super().__init__()            
         self.args = dict(model_name='lmsys/vicuna-7b-v1.5-16k',
                         device='cuda',
@@ -306,22 +306,33 @@ class FastChatModel(TTTStrategy):
                         conv_template='custom_vicuna',
                         temperature=0.7,
                         max_new_tokens=512,
-                        debug=False)
+                        debug=False,)
         self.args = argparse.Namespace(**self.args)
         self.model, self.tokenizer = self.load_model(self.args.model_name, self.args.device, self.args.num_gpus, self.args.load_8bit)
-        # Vicuna v1.1 template
         register_conv_template(
             Conversation(
-                name="custom_vicuna",
-                system_message="""A chat between a curious user and an artificial intelligence assistant.
-                                The assistant gives helpful, detailed, and polite answers to the user's questions.
-                                The assistant always answers in German.""",
+                name=self.args.conv_template,
+                system_message=prompt,
                 roles=("USER", "ASSISTANT"),
                 sep_style=SeparatorStyle.ADD_COLON_TWO,
                 sep=" ",
                 sep2="</s>",
             )
         )
+        
+        # Vicuna v1.1 template
+        # register_conv_template(
+        #     Conversation(
+        #         name="custom_vicuna",
+        #         system_message="""A chat between a curious user and an artificial intelligence assistant.
+        #                         The assistant gives helpful, detailed, and polite answers to the user's questions.
+        #                         The assistant always answers in German.""",
+        #         roles=("USER", "ASSISTANT"),
+        #         sep_style=SeparatorStyle.ADD_COLON_TWO,
+        #         sep=" ",
+        #         sep2="</s>",
+        #     )
+        # )
         # Chat
         self.conv = conv_templates[self.args.conv_template].copy()
         self.welcome_message = "Hallo, Ich heiße Alvi, wie kann ich dir helfen?"

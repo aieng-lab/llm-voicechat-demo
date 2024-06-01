@@ -4,4 +4,5 @@
 "color": "#04d9ff",
 "stt_model": "WhisperLargeV2",
 "ttt_model": "FastChatModel",
-"tts_model": "XTTS_V2"}
+"tts_model": "XTTS_V2",
+"prompt": "A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions. The assistant always answers in German."}
