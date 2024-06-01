@@ -691,6 +691,19 @@ class MainUI(QtWidgets.QMainWindow):
         except Exception as e:
             pass
 
+    def closeEvent(self, event):
+        self.reset()
+        self.record_allowed = False
+        self.plotting = False
+        self.stopped = False
+        self.speaking_allowed =False
+        url = url = "http://localhost:5000/close"
+        response = requests.get(url, data={})
+        
+        self.speaker_worker.stop_running()
+        # Ask for confirmation before closing
+        # confirmation = QtWidgets.QMessageBox.question(self, "Confirmation", "Are you sure you want to close the application?", QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)    
+        
 def main():
     params = {
 	"CHUNK": 1024,
@@ -707,7 +720,7 @@ def main():
     
     params["window_size"] = QtWidgets.QDesktopWidget().screenGeometry(-1)
     mainWindow = MainUI(params=params)
-    app.exec_()
+    sys.exit(app.exec_())
 
 
 if __name__ == '__main__':
