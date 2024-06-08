@@ -117,7 +117,9 @@ def generateAnswer(voice_request):
             print(entry)
             print("\n##############\n")
             current_time = time.time()
-
+            if len(entry)<1:
+                entry = "Entschuldigung, ich konnte deine Anfrage nicht beantworten. "
+                continue
             voice_answer = tts_model.run(entry)
             tts_times.append(time.time()-current_time)
             if first_response:
@@ -133,9 +135,6 @@ def generateAnswer(voice_request):
                 print(entry)
                 print("\n##############\n")
                 current_time = time.time()
-                if len(entry)<1:
-                    entry = "Entschuldigung, ich konnte deine Anfrage nicht beantworten. "
-                    continue
                 voice_answer = tts_model.run(entry)
                 tts_times.append(time.time()-current_time)
                 
@@ -176,4 +175,4 @@ def receive():
 
 if __name__ == '__main__':
     
-    sio.run(app, debug=False, use_reloader=False, log_output=False)
+    sio.run(app, host="0.0.0.0", port="5000",debug=False, use_reloader=False, log_output=False)
