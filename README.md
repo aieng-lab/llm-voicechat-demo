@@ -21,6 +21,13 @@ git clone https://github.com/aieng-lab/llm-voicechat-demo.git
    python3.9.18 -m venv voicebot
    source voicebot/bin/activate
    ```
+   - Or you can build a Docker instance:
+     ```
+     cd llm-voicechat-demo
+     docker build . -t bot_backend -f DockerProject/Dockerfile
+     docker run -p 5000:5000 --runtime=nvidia --gpus all bot_backend
+     ```
+     If you face problems with your GPU when using docker, refer to this question on Stackoverflow.
    
 3. Install the required libraries:
 ```
@@ -28,7 +35,7 @@ pip install -r requirements.txt
 ```
 
 4. You need two terminal windows at llm-voicechat-demo/Code directory
-    - In the first terminal run:
+    - In the first terminal run (if you're using Docker, you don't need to run the backend, because it's already running. Just run the GUI):
     ```
     python FlaskSocketIO_backend.py
     ```
