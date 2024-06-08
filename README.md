@@ -27,7 +27,7 @@ git clone https://github.com/aieng-lab/llm-voicechat-demo.git
      docker build . -t bot_backend -f DockerProject/Dockerfile
      docker run -p 5000:5000 --runtime=nvidia --gpus all bot_backend
      ```
-     If you face problems with your GPU when using docker, refer to this question on Stackoverflow [https://stackoverflow.com/questions/25185405/using-gpu-from-a-docker-container](here).
+     If you face problems with your GPU when using docker, refer to this question on Stackoverflow [click here](https://stackoverflow.com/questions/25185405/using-gpu-from-a-docker-container).
    
 3. Install the required libraries:
 ```
