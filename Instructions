@@ -1,0 +1,53 @@
+To start the program do the following:
+
+1 - Open two terminals at this directory: Desktop/llm-voicechat-demo/Code
+
+
+2 - Activate the "voicebot" environment in both terminals:
+    """
+    conda activate voicebot
+    """
+
+3 - Run the backend in one terminal:
+    """
+    python FlaskSocketIO_backend.py
+    """
+4 - Run the GUI in the other terminal:
+    """
+    python FlaskSocketIO_GUI.py
+    """
+
+5 - Make sure that the backend is fully loaded before clicking on "Starte Gespräch".
+    The backend is fully loaded when it ouputs:
+    """
+    * Serving Flask app 'FlaskSocketIO_backend'
+    * Debug mode: off
+    """
+
+
+
+
+Um das program zu starten, mach die Folgenden:
+
+1 - Offne zwei Terminals am: Desktop/llm-voicechat-demo/Code.
+
+2 - Aktivier die "voicebot" Environment:
+    """
+    conda activate voicebot
+    """
+
+3 - Starte das Backend im ersten Terminal:
+    """
+    python FlaskSocketIO_backend.py
+    """
+4 - Starte das GUI im anderen Terminal::
+    """
+    python FlaskSocketIO_GUI.py
+    """
+
+5 - Warte bis das Backend läuft, bevor du auf "Starte Gespräch" klickst.
+    Das Backend läuft, wenn der Terminal anzeigt:
+    """
+    * Serving Flask app 'FlaskSocketIO_backend'
+    * Debug mode: off
+    """
