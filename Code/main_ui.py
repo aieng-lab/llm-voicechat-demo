@@ -10,7 +10,18 @@
 
 from PyQt5 import QtCore, QtWidgets
 
-
+class ChatWindow(QtWidgets.QWidget):
+    """
+    This "window" is a QWidget. If it has no parent, it
+    will appear as a free-floating window as we want.
+    """
+    def __init__(self):
+        super().__init__()
+        layout = QtWidgets.QVBoxLayout()
+        self.text = QtWidgets.QTextBrowser(parent=self)
+        layout.addWidget(self.text)
+        self.setLayout(layout)
+        
 class Ui_MainWindow(object):        
     
     def setupUi(self, MainWindow, window_size):
@@ -72,6 +83,9 @@ class Ui_MainWindow(object):
         self.gridLayout_4 = QtWidgets.QGridLayout()
         self.gridLayout_4.setObjectName("gridLayout_4")
         
+        self.gridLayout_5 = QtWidgets.QGridLayout()
+        self.gridLayout_5.setObjectName("gridLayout_5")
+        
         self.startButton = QtWidgets.QPushButton(self.groupBox1)
         self.startButton.setObjectName("startButton")
         ###
@@ -88,7 +102,14 @@ class Ui_MainWindow(object):
         
         self.gridLayout_4.addWidget(self.resetButton, 0, 1, 1, 1)
         
+        self.chatWindow = ChatWindow()
+        self.chatButton = QtWidgets.QPushButton(self.groupBox1)
+        self.chatButton.setStyleSheet(f'background-color: #555555; font-size: {self.button_text_size}px; color: white;')
+        
+        self.gridLayout_5.addWidget(self.chatButton, 0, 0, 1, 1)
+        
         self.buttonsLayout.addLayout(self.gridLayout_4)
+        self.buttonsLayout.addLayout(self.gridLayout_5)
         
         self.verticalLayout1.addLayout(self.buttonsLayout)
         
@@ -109,6 +130,7 @@ class Ui_MainWindow(object):
         self.label_6.setText(_translate("MainWindow", "Ich schlafe  ..."))
         self.startButton.setText(_translate("MainWindow", "Starte Gespräch"))
         self.resetButton.setText(_translate("MainWindow", "Beende Gespräch"))
+        self.chatButton.setText(_translate("MainWindow", "Zeig Gespräch an"))
 
 
 if __name__ == "__main__":

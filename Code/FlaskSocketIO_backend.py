@@ -102,6 +102,8 @@ def generateAnswer(voice_request):
     current_time = start_time
     # print("########### generating ###########")
     transcribtion = stt_model.run(voice_request)
+    sio.emit("chat", "========================")
+    sio.emit("chat", "USER  >>>  "+transcribtion)
     transcribtion_time = time.time() - current_time
     print(transcribtion)
     # print(voice_query)
@@ -120,6 +122,7 @@ def generateAnswer(voice_request):
             if len(entry)<1:
                 entry = "Entschuldigung, ich konnte deine Anfrage nicht beantworten. "
                 continue
+            sio.emit("chat", data= "ALVI  >>>  "+entry)
             voice_answer = tts_model.run(entry)
             tts_times.append(time.time()-current_time)
             if first_response:
@@ -135,6 +138,7 @@ def generateAnswer(voice_request):
                 print(entry)
                 print("\n##############\n")
                 current_time = time.time()
+                sio.emit("chat", data= "ALVI >>> "+entry)
                 voice_answer = tts_model.run(entry)
                 tts_times.append(time.time()-current_time)
                 

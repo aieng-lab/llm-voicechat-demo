@@ -231,6 +231,7 @@ class Client(QtCore.QObject):
     data_changed = QtCore.pyqtSignal(bytes, name="dataChanged")
     end_receive = QtCore.pyqtSignal()
     recorded_times = QtCore.pyqtSignal(bytes)
+    chatReceived = QtCore.pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -240,6 +241,7 @@ class Client(QtCore.QObject):
         self.sio.on("disconnect", self._handle_disconnect, namespace=None)
         self.sio.on("voice reply", self.receiveAudio, namespace=None)
         self.sio.on("request", self.endReceiving, namespace=None)
+        self.sio.on("chat", self.receiveChat, namespace=None)
 
     @cached_property
     def sio(self):
@@ -257,6 +259,7 @@ class Client(QtCore.QObject):
         """Connect to socketIO.AsyncServer
         """
         await self.sio.connect(url="http://127.0.0.1:5000", transports="polling")
+        # await self.sio.connect(url="http://127.0.0.1:8080", transports="polling")
         await self.sio.wait()
         
     async def disconnect(self):
@@ -314,6 +317,9 @@ class Client(QtCore.QObject):
         
         await self.sio.emit('request', data=request)
         
+    def receiveChat(self, data):
+        self.chatReceived.emit(data)
+        
 
     async def reset(self):
         """Emits to the server to reset the chat history.
@@ -325,7 +331,9 @@ class GUISignals(QtCore.QObject):
     """PyQt signals for MainUI
     """
     request = QtCore.pyqtSignal()
-    
+
+        
+        
 class MainUI(QtWidgets.QMainWindow):
     """The main window of our GUI.
 
@@ -344,6 +352,7 @@ class MainUI(QtWidgets.QMainWindow):
         self.ui.setupUi(self, params["window_size"])
         self.showMaximized()
         # self.showFullScreen()
+        
         
         # QThreadPools are used to run QRunnable objects.
         self.threadpool = QtCore.QThreadPool()
@@ -401,10 +410,15 @@ class MainUI(QtWidgets.QMainWindow):
  
         self.ui.startButton.clicked.connect(self.start)
         self.ui.resetButton.clicked.connect(self.reset)
+        self.ui.chatButton.clicked.connect(self.showChatWindow)
 
 
         self.ui.startButton.setEnabled(True)
         self.ui.resetButton.setEnabled(True)
+        self.ui.chatButton.setEnabled(True)
+    
+    def showChatWindow(self):
+        self.ui.chatWindow.show()
         
     def reset(self):
         """Reset the project back to the starting point.
@@ -429,6 +443,9 @@ class MainUI(QtWidgets.QMainWindow):
         self.plotdata =  np.zeros((self.length,len(self.channels)))
         #Change BOT Status
         self.displayStatus("Ich schlafe  ... ")
+        
+    def updateChat(self, data):
+        self.ui.chatWindow.text.append(data)
     
     def start(self):
         """Starts when Start button is clicked.
@@ -442,8 +459,9 @@ class MainUI(QtWidgets.QMainWindow):
         if self.client_worker is None:
             self.client_worker = ClientWorker(self.client)
             self.client.data_changed.connect(self.updateAudioQueue)
+            self.client.chatReceived.connect(self.updateChat)
             self.client.end_receive.connect(self.startSpeakerWorker)
-            self.client.recorded_times.connect(self.saveLogs)
+            # self.client.recorded_times.connect(self.saveLogs)
             self.client_pool.start(self.client_worker)
         if self.speaker_worker is None:
             self.stopped = False
