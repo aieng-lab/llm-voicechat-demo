@@ -443,6 +443,7 @@ class MainUI(QtWidgets.QMainWindow):
         self.plotdata =  np.zeros((self.length,len(self.channels)))
         #Change BOT Status
         self.displayStatus("Ich schlafe  ... ")
+        self.ui.chatWindow.text.setText("")
         
     def updateChat(self, data):
         self.ui.chatWindow.text.append(data)
@@ -472,6 +473,8 @@ class MainUI(QtWidgets.QMainWindow):
             self.speaker_worker.signals.status.connect(self.updateStatus)
             self.threadpool.start(self.speaker_worker)
             self.init = True
+        
+        self.ui.chatWindow.text.append("ALVI  >>>  "+ self.params["welcome_message"])
             
         self.startSpeakerWorker()
     

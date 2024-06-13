@@ -5,4 +5,5 @@
 "stt_model": "WhisperLargeV2",
 "ttt_model": "FastChatModel",
 "tts_model": "XTTS_V2",
+"welcome_message": "Hello ich heiße Alvi, wie kann ich dir helfen?",
 "prompt": "A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions. The assistant always answers in German."}
