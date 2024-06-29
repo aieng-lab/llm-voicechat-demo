@@ -30,6 +30,7 @@ import socketio
 import asyncio
 from functools import cached_property
 from main_ui import Ui_MainWindow
+import PIL
 
 
 #Get this files path.
@@ -232,6 +233,7 @@ class Client(QtCore.QObject):
     end_receive = QtCore.pyqtSignal()
     recorded_times = QtCore.pyqtSignal(bytes)
     chatReceived = QtCore.pyqtSignal(str)
+    imageReceived = QtCore.pyqtSignal(bytes)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -242,6 +244,7 @@ class Client(QtCore.QObject):
         self.sio.on("voice reply", self.receiveAudio, namespace=None)
         self.sio.on("request", self.endReceiving, namespace=None)
         self.sio.on("chat", self.receiveChat, namespace=None)
+        self.sio.on("image", self.receiveImage, namespace=None)
 
     @cached_property
     def sio(self):
@@ -319,6 +322,9 @@ class Client(QtCore.QObject):
         
     def receiveChat(self, data):
         self.chatReceived.emit(data)
+        
+    def receiveImage(self, data):
+        self.imageReceived.emit(data["image_bytes"])
         
 
     async def reset(self):
@@ -420,6 +426,7 @@ class MainUI(QtWidgets.QMainWindow):
     def showChatWindow(self):
         self.ui.chatWindow.show()
         
+        
     def reset(self):
         """Reset the project back to the starting point.
         It doesn't terminate the current task, but it stops the all future ones.
@@ -447,6 +454,13 @@ class MainUI(QtWidgets.QMainWindow):
         
     def updateChat(self, data):
         self.ui.chatWindow.text.append(data)
+        
+    def updateImage(self, image):
+        image_np = np.frombuffer(image, dtype=np.uint8).reshape((512,512,3))
+        self.ui.imageWindow.setData(image_np)
+        self.ui.imageWindow.plot()
+        self.ui.imageWindow.show()
+        # print(image_np.shape)
     
     def start(self):
         """Starts when Start button is clicked.
@@ -461,6 +475,7 @@ class MainUI(QtWidgets.QMainWindow):
             self.client_worker = ClientWorker(self.client)
             self.client.data_changed.connect(self.updateAudioQueue)
             self.client.chatReceived.connect(self.updateChat)
+            self.client.imageReceived.connect(self.updateImage)
             self.client.end_receive.connect(self.startSpeakerWorker)
             # self.client.recorded_times.connect(self.saveLogs)
             self.client_pool.start(self.client_worker)

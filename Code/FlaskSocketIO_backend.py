@@ -8,6 +8,7 @@ from flask_socketio import SocketIO
 import threading
 import logging
 
+
 main_path = os.path.dirname(os.path.realpath(__file__))
 logs_path = main_path + "/logs/"
 
@@ -41,9 +42,10 @@ with open(main_path+'/params.json') as params_file:
 def load_models(params):
     """Loads all there models: Speech-to-Text, Text-to-Text, Text-to-Speech models.
     Returns:
-        (WhisperLargeV2): Speech-to-Text model.
-        (FastChatModel): Text-to-Text models.
-        (XTTS_V2): Text-to-Speech models.
+        stt_model (STTStrategy): Speech-to-Text model, default = WhisperLargeV2.
+        ttt_model (TTTStrategy): Text-to-Text model, default = FastChatModel.
+        tts_model (TTSStrategy): Text-to-Speech model default = XTTS_V2.
+        tti_model (TTIStrategy): Text-to-Image deffusion model, default = StableDiffusion
     """
     # print("\nLoading Whisper ...\n")
     # stt_model = WhisperLargeV2()
@@ -54,10 +56,14 @@ def load_models(params):
     # print("\nLoading XTTS_V2 ...\n")
     # tts_model = XTTS_V2()
     tts_model = get_instance(params["tts_model"])
-    return stt_model, ttt_model, tts_model
+    
+    # print("\nLoading StableDiffusion ...\n")
+    # tts_model = StableDiffusion()
+    tti_model = get_instance(params["tti_model"])
+    return stt_model, ttt_model, tts_model, tti_model
 
 
-stt_model, ttt_model, tts_model = load_models(params)
+stt_model, ttt_model, tts_model, tti_model = load_models(params)
 
 
 @sio.on("connect")
@@ -113,6 +119,13 @@ def generateAnswer(voice_request):
     tts_times = []
     current_time = time.time()
     for out in ttt_model.run(transcribtion.strip()):
+        if "<ImageGeneration>" in out:
+            print("Plotting Request")
+            out = out.replace("<ImageGeneration>", "")
+            image_np = np.array(tti_model.run(transcribtion.strip()))
+            image_bytes = image_np.tobytes()
+            sio.emit("image", data= {"image_bytes": image_bytes})
+            continue
         ttt_times.append(time.time()-current_time)
         if out == "END":
             print("\n##############\n")

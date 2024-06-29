@@ -8,7 +8,7 @@ import argparse
 from fastchat.conversation import conv_templates, SeparatorStyle, register_conv_template, Conversation
 import numpy as np
 from TTS.api import TTS
-
+from diffusers import StableDiffusionPipeline
 
 
 
@@ -47,6 +47,19 @@ class TTSStrategy(ABC):
         run:  Convert text input to audio object, save it into a .mp3 file then play it.
                 parameters: text:str
                 Return: None.
+    ----------
+    """
+    @abstractmethod
+    def run(self, text:str):
+        pass
+    
+class TTIStrategy(ABC):
+    """Interface for Text-to-Image deffusion Models.
+    ----------
+    Functions:
+        run:  Generate an image out of the input text.
+                parameters: text:str
+                Return: PIL.Image.Image.
     ----------
     """
     @abstractmethod
@@ -320,20 +333,6 @@ class FastChatModel(TTTStrategy):
             )
         )
         
-        # Vicuna v1.1 template
-        # register_conv_template(
-        #     Conversation(
-        #         name="custom_vicuna",
-        #         system_message="""A chat between a curious user and an artificial intelligence assistant.
-        #                         The assistant gives helpful, detailed, and polite answers to the user's questions.
-        #                         The assistant always answers in German.""",
-        #         roles=("USER", "ASSISTANT"),
-        #         sep_style=SeparatorStyle.ADD_COLON_TWO,
-        #         sep=" ",
-        #         sep2="</s>",
-        #     )
-        # )
-        # Chat
         self.conv = conv_templates[self.args.conv_template].copy()
         self.welcome_message = "Hallo, Ich heiße Alvi, wie kann ich dir helfen?"
         self.conv.append_message(self.conv.roles[1], self.welcome_message)
@@ -525,6 +524,7 @@ class FastChatModel(TTTStrategy):
         """Clear chat's history.
         """
         self.conv.messages.clear()
+        self.conv = conv_templates[self.args.conv_template].copy()
         self.conv.append_message(self.conv.roles[1], self.welcome_message)
         self.shift = 0
         
@@ -571,3 +571,16 @@ class XTTS_V2(TTSStrategy):
         except Exception as e:
             print(e)
             return np.array([], dtype=np.float32)
+        
+class StableDiffusion(TTIStrategy):
+    
+    def __init__(self) -> None:
+        super().__init__()
+        model_id = "CompVis/stable-diffusion-v1-4"
+        device = "cuda"
+        self.pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype= torch.float16)
+        self.pipe = self.pipe.to(device)
+        self.pipe.enable_attention_slicing()
+        
+    def run(self, text: str):
+        return self.pipe(text).images[0]
