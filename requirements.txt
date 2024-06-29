@@ -12,3 +12,4 @@ pyqt5==5.15.10
 sounddevice==0.4.6
 pyaudio==0.2.13
 flask-socketio==5.3.6
+diffusers==0.29.1
