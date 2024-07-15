@@ -102,6 +102,7 @@ def generateAnswer(voice_request):
     Args:
         voice_request (bytes): Recorded voice request from client.
     """
+    global params
     first_response = True
     logs = {}
     start_time = time.time()
@@ -118,57 +119,76 @@ def generateAnswer(voice_request):
     ttt_times = []
     tts_times = []
     current_time = time.time()
-    for out in ttt_model.run(transcribtion.strip()):
-        if "<ImageGeneration>" in out:
-            print("Plotting Request")
-            out = out.replace("<ImageGeneration>", "")
-            image_np = np.array(tti_model.run(transcribtion.strip()))
-            image_bytes = image_np.tobytes()
-            sio.emit("image", data= {"image_bytes": image_bytes})
-            continue
-        ttt_times.append(time.time()-current_time)
-        if out == "END":
-            print("\n##############\n")
-            print(entry)
-            print("\n##############\n")
-            current_time = time.time()
-            if len(entry)<1:
-                entry = "Entschuldigung, ich konnte deine Anfrage nicht beantworten. "
-                continue
-            sio.emit("chat", data= "ALVI  >>>  "+entry)
-            voice_answer = tts_model.run(entry)
-            tts_times.append(time.time()-current_time)
-            if first_response:
-                logs["first_response"] = sum(ttt_times) + sum(tts_times)
-                first_response = False
-            b_answer = voice_answer.tobytes()
-            response.append(entry)
-            data = {"voice_answer": b_answer}
-            sio.emit("voice reply", data)
-        else:
-            if (len(entry) + len(out) + 1) >= entry_length:
+    # keywords_1_set = set(params["keywords_1"])
+    # keywords_2_set = set(params["keywords_2"])
+    # prompt_words = set(transcribtion.split())
+
+    
+    # if keywords_1_set & prompt_words and keywords_2_set & prompt_words:
+    plot_request = False
+    for keyword_1 in params["keywords_1"]:
+        if keyword_1 in transcribtion:
+            for keyword_2 in params["keywords_2"]:
+                if keyword_2 in transcribtion:
+                    plot_request = True
+                    break
+            if plot_request:
+                break
+    if plot_request:
+        print("Plotting Request")
+        image_np = np.array(tti_model.run(transcribtion.strip()+params["image_generation_prompt"]))
+        image_bytes = image_np.tobytes()
+        sio.emit("chat", data= "ALVI  >>>  Hast du weitere Anfragen?")
+        voice_answer = tts_model.run("Hast du weitere Anfragen?")
+        sio.emit("image", data= {"image_bytes": image_bytes})
+        b_answer = voice_answer.tobytes()
+        data = {"voice_answer": b_answer}
+        sio.emit("voice reply", data)
+    else:
+        for out in ttt_model.run(transcribtion.strip()):
+            ttt_times.append(time.time()-current_time)
+            if out == "END":
                 print("\n##############\n")
                 print(entry)
                 print("\n##############\n")
                 current_time = time.time()
-                sio.emit("chat", data= "ALVI >>> "+entry)
+                if len(entry)<1:
+                    entry = "Entschuldigung, ich konnte deine Anfrage nicht beantworten. "
+                    continue
+                sio.emit("chat", data= "ALVI  >>>  "+entry)
                 voice_answer = tts_model.run(entry)
                 tts_times.append(time.time()-current_time)
-                
                 if first_response:
                     logs["first_response"] = sum(ttt_times) + sum(tts_times)
                     first_response = False
-                    
                 b_answer = voice_answer.tobytes()
-                data = {"voice_answer": b_answer}
                 response.append(entry)
-                entry = out + " "
                 data = {"voice_answer": b_answer}
                 sio.emit("voice reply", data)
             else:
-                entry += out + " "
-        current_time = time.time()    
-    
+                if (len(entry) + len(out) + 1) >= entry_length:
+                    print("\n##############\n")
+                    print(entry)
+                    print("\n##############\n")
+                    current_time = time.time()
+                    sio.emit("chat", data= "ALVI >>> "+entry)
+                    voice_answer = tts_model.run(entry)
+                    tts_times.append(time.time()-current_time)
+                    
+                    if first_response:
+                        logs["first_response"] = sum(ttt_times) + sum(tts_times)
+                        first_response = False
+                        
+                    b_answer = voice_answer.tobytes()
+                    data = {"voice_answer": b_answer}
+                    response.append(entry)
+                    entry = out + " "
+                    data = {"voice_answer": b_answer}
+                    sio.emit("voice reply", data)
+                else:
+                    entry += out + " "
+            current_time = time.time()    
+        
     logs["stt_time"] = transcribtion_time
     logs["ttt_times"] = ttt_times
     logs["tts_times"] = tts_times
