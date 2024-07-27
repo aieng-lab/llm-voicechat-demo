@@ -8,7 +8,7 @@ import argparse
 from fastchat.conversation import conv_templates, SeparatorStyle, register_conv_template, Conversation
 import numpy as np
 from TTS.api import TTS
-from diffusers import StableDiffusionPipeline
+from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
 
 
 
@@ -111,7 +111,8 @@ class WhisperModel(STTStrategy):
             print("Microphone is listening ... \n")
             audio = self.r.listen(source)
             print("Microphone is recognizing ... \n")
-            text=self.p(audio.get_flac_data(), max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
+            # text=self.p(audio.get_flac_data(), max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
+            text=self.p(audio.get_flac_data(), max_new_tokens=500)["text"]
             print(text, "\n")
         return text
 
@@ -138,7 +139,8 @@ class WhisperTiny(WhisperModel):
         super().__init__()
         
         self.processor = WhisperProcessor.from_pretrained("openai/whisper-tiny")
-        self.forced_decoder_ids = self.processor.get_decoder_prompt_ids(language="german", task="transcribe")
+        # self.forced_decoder_ids = self.processor.get_decoder_prompt_ids(language="german", task="transcribe")
+        self.forced_decoder_ids = self.processor.get_decoder_prompt_ids(task="transcribe")
         # self.model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-tiny")
         self.p = pipeline(task="automatic-speech-recognition", model="openai/whisper-tiny", generate_kwargs={"forced_decoder_ids": self.forced_decoder_ids})
         
@@ -284,7 +286,8 @@ class WhisperLargeV2(WhisperModel):
         )
 
     def run(self, audio):
-        return self.p(audio, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
+        # return self.p(audio, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
+        return self.p(audio, max_new_tokens=500)["text"]
 
 
     
@@ -535,7 +538,7 @@ class FastChatModel(TTTStrategy):
     
 
 
-class XTTS_V2(TTSStrategy):
+class ThorstenVits(TTSStrategy):
     """A text to speech strategy using /de/thorsten/vits model from Coqui project. Subclass of TTTStrategy
         
         Args:
@@ -572,15 +575,52 @@ class XTTS_V2(TTSStrategy):
             print(e)
             return np.array([], dtype=np.float32)
         
+class XTTS_V2(TTSStrategy):
+    """A text to speech strategy using /de/thorsten/vits model from Coqui project. Subclass of TTTStrategy
+        
+        Args:
+            speaker (str): path to voice file.
+    """
+
+    def __init__(self, speaker:str = "welcome_message.wav") -> None:
+        super().__init__()
+        # self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        self.model = TTS("tts_models/multilingual/multi-dataset/xtts_v2", gpu=True)
+        # self.model = TTS("tts_models/de/thorsten/vits").to('cuda:0')
+
+        self.voice_preset = speaker
+
+
+
+    def run(self, text:str, filepath:str = "text_to_speech.wav", language:str="en"):
+        """Generates speech of the provided text.
+        Args:
+            text (str): input of which the speech is generated.
+            filepath (str, optional): the file path to save the speech in. Defaults to "text_to_speech.wav".
+        Returns:
+            (numpy.ndarray): Numpy array of audio bytes.
+        """        
+        # print("Generating started \n")        
+        # speed=2.0, emotion="Sad"
+        try:
+            audio_list = self.model.tts(text=text, speaker_wav=self.voice_preset,language=language)
+            data = np.asarray(audio_list, dtype=np.float32)
+            # print("Generating finished\n")
+            return data
+        except Exception as e:
+            print(e)
+            return np.array([], dtype=np.float32)
+        
 class StableDiffusion(TTIStrategy):
     
     def __init__(self) -> None:
         super().__init__()
-        model_id = "CompVis/stable-diffusion-v1-4"
+        repo_id = "stabilityai/stable-diffusion-2-base"
         device = "cuda"
-        self.pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype= torch.float16)
-        self.pipe = self.pipe.to(device)
-        self.pipe.enable_attention_slicing()
+        self.pipe = DiffusionPipeline.from_pretrained(repo_id, torch_dtype=torch.float16, variant="fp16")
+        self.pipe.scheduler = DPMSolverMultistepScheduler.from_config(self.pipe.scheduler.config)
+        self.pipe = self.pipe.to("cuda")
         
     def run(self, text: str):
         return self.pipe(text).images[0]

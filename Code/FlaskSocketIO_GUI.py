@@ -467,7 +467,7 @@ class MainUI(QtWidgets.QMainWindow):
         Play a pre-generated welcome message.
         If the Reset is already clicked, re-initialize and start both client_worker and speaker_worker.
         """
-        wf = wave.open("welcome_message.wav")
+        wf = wave.open("welcome_message_2.wav")
         data = wf.readframes(-1)
         self.audio_queue.put_nowait(data)
         # print("Initialiazing is finished.\n")

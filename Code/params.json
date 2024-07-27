@@ -4,13 +4,17 @@
 "color": "#04d9ff",
 "stt_model": "WhisperLargeV2",
 "ttt_model": "FastChatModel",
-"tts_model": "XTTS_V2",
+"gtts_model": "ThorstenVits",
+"etts_model": "XTTS_V2",
 "tti_model": "StableDiffusion",
 "welcome_message": "Hello ich heiße Alvi, wie kann ich dir helfen?",
-"prompt": "A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions. The assistant always answers in German.",
-"image_generation_prompt":"Das Bild muss realistisch und Kartonisch aussehen.",
-"keywords_1": ["Bild", "Image", "Figur", "Foto", "Photo", "Malerei"],
-"keywords_2": ["malen", "generieren", "machen", "zeichnen"]
+"prompt": "A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.",
+"image_generation_prompt":"The picture should be in the style of a first-grader.",
+"keywords_1": ["Bild","Image", "image"],
+"keywords_2": ["malen", "generieren", "zeichnen", "draw"],
+"default_language": "en",
+"available_languages": {"Deutsch":"de","English":"en"},
+"type":"quiz"
 }
 
 

@@ -7,10 +7,13 @@ from flask import Flask, request
 from flask_socketio import SocketIO
 import threading
 import logging
+from langdetect import detect, DetectorFactory
 
 
 main_path = os.path.dirname(os.path.realpath(__file__))
 logs_path = main_path + "/logs/"
+DetectorFactory.seed = 0
+
 
 if not os.path.exists(logs_path):
     os.makedirs(logs_path)
@@ -55,15 +58,16 @@ def load_models(params):
     ttt_model = get_instance(params["ttt_model"], params["prompt"])
     # print("\nLoading XTTS_V2 ...\n")
     # tts_model = XTTS_V2()
-    tts_model = get_instance(params["tts_model"])
+    gtts_model = get_instance(params["gtts_model"])
+    etts_model = get_instance(params["etts_model"])
     
     # print("\nLoading StableDiffusion ...\n")
     # tts_model = StableDiffusion()
     tti_model = get_instance(params["tti_model"])
-    return stt_model, ttt_model, tts_model, tti_model
+    return stt_model, ttt_model, gtts_model, etts_model, tti_model
 
 
-stt_model, ttt_model, tts_model, tti_model = load_models(params)
+stt_model, ttt_model, gtts_model, etts_model, tti_model = load_models(params)
 
 
 @sio.on("connect")
@@ -136,10 +140,18 @@ def generateAnswer(voice_request):
                 break
     if plot_request:
         print("Plotting Request")
-        image_np = np.array(tti_model.run(transcribtion.strip()+params["image_generation_prompt"]))
+        image_np = np.array(tti_model.run(transcribtion.strip()+ " " + params["image_generation_prompt"]))
         image_bytes = image_np.tobytes()
-        sio.emit("chat", data= "ALVI  >>>  Hast du weitere Anfragen?")
-        voice_answer = tts_model.run("Hast du weitere Anfragen?")
+        lang = detect(transcribtion) 
+        if lang == "de":
+            print("#####\n",lang,"\n#####\n")
+            sio.emit("chat", data= "ALVI  >>>  Hast du weitere Anfragen?")
+            # voice_answer = tts_model.run(entry, language='de')
+            voice_answer = gtts_model.run(entry)
+        else:
+            print("#####\n",lang,"\n#####\n")
+            sio.emit("chat", data= "ALVI  >>>  Do you have another request?")
+            voice_answer = etts_model.run("Do you have another request?", language='en')
         sio.emit("image", data= {"image_bytes": image_bytes})
         b_answer = voice_answer.tobytes()
         data = {"voice_answer": b_answer}
@@ -147,6 +159,8 @@ def generateAnswer(voice_request):
     else:
         for out in ttt_model.run(transcribtion.strip()):
             ttt_times.append(time.time()-current_time)
+            if len(out)<1 or out.isspace():
+                continue
             if out == "END":
                 print("\n##############\n")
                 print(entry)
@@ -156,7 +170,16 @@ def generateAnswer(voice_request):
                     entry = "Entschuldigung, ich konnte deine Anfrage nicht beantworten. "
                     continue
                 sio.emit("chat", data= "ALVI  >>>  "+entry)
-                voice_answer = tts_model.run(entry)
+                # voice_answer = tts_model.run(entry)
+                lang = detect(entry) 
+                if lang == "de":
+                    print("#####\n",lang,"\n#####\n")
+                    # voice_answer = tts_model.run(entry, language='de')
+                    voice_answer = gtts_model.run(entry)
+                else:
+                    print("#####\n",lang,"\n#####\n")
+                    voice_answer = etts_model.run(entry, language='en')
+                    
                 tts_times.append(time.time()-current_time)
                 if first_response:
                     logs["first_response"] = sum(ttt_times) + sum(tts_times)
@@ -172,7 +195,15 @@ def generateAnswer(voice_request):
                     print("\n##############\n")
                     current_time = time.time()
                     sio.emit("chat", data= "ALVI >>> "+entry)
-                    voice_answer = tts_model.run(entry)
+                    # voice_answer = tts_model.run(entry)
+                    lang = detect(entry) 
+                    if lang == "de":
+                        print("#####\n",lang,"\n#####\n")
+                        # voice_answer = tts_model.run(entry, language='de')
+                        voice_answer = gtts_model.run(entry)
+                    else:
+                        print("#####\n",lang,"\n#####\n")
+                        voice_answer = etts_model.run(entry, language='en')
                     tts_times.append(time.time()-current_time)
                     
                     if first_response:
