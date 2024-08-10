@@ -55,19 +55,34 @@ def load_models(params):
     stt_model = get_instance(params["stt_model"])
     # print("\nLoading FastChat ...\n")
     # ttt_model = FastChatModel()
-    ttt_model = get_instance(params["ttt_model"], params["prompt"])
-    # print("\nLoading XTTS_V2 ...\n")
-    # tts_model = XTTS_V2()
-    gtts_model = get_instance(params["gtts_model"])
-    etts_model = get_instance(params["etts_model"])
+    ttt_model = get_instance(params["ttt_model"], params["text_generation_system_prompt"])
     
     # print("\nLoading StableDiffusion ...\n")
     # tts_model = StableDiffusion()
     tti_model = get_instance(params["tti_model"])
-    return stt_model, ttt_model, gtts_model, etts_model, tti_model
+    
+    
+    # print("\nLoading XTTS_V2 ...\n")
+    # tts_model = XTTS_V2()
+    if params["conversation_language"]=="multi":
+        gtts_model = get_instance(params["gtts_model"])
+        etts_model = get_instance(params["etts_model"])
+        default_language = params["default_language"]
+        
+    elif params["conversation_language"]=="de":
+        gtts_model = get_instance(params["gtts_model"])
+        etts_model = None
+        default_language = "de"
+        
+    else:
+        etts_model = get_instance(params["etts_model"])
+        gtts_model = None
+        default_language = "en"
+    
+    return stt_model, ttt_model, tti_model, gtts_model, etts_model, default_language
 
 
-stt_model, ttt_model, gtts_model, etts_model, tti_model = load_models(params)
+stt_model, ttt_model, tti_model, gtts_model, etts_model, default_language = load_models(params)
 
 
 @sio.on("connect")
@@ -112,7 +127,8 @@ def generateAnswer(voice_request):
     start_time = time.time()
     current_time = start_time
     # print("########### generating ###########")
-    transcribtion = stt_model.run(voice_request)
+    # transcribtion = stt_model.run(voice_request)
+    transcribtion = stt_model.run(voice_request, language=params["conversation_language"])
     sio.emit("chat", "========================")
     sio.emit("chat", "USER  >>>  "+transcribtion)
     transcribtion_time = time.time() - current_time
@@ -123,34 +139,42 @@ def generateAnswer(voice_request):
     ttt_times = []
     tts_times = []
     current_time = time.time()
-    # keywords_1_set = set(params["keywords_1"])
-    # keywords_2_set = set(params["keywords_2"])
+    # image_generation_keywords_nouns = set(params["image_generation_keywords_nouns"])
+    # image_generation_keywords_verbs = set(params["image_generation_keywords_verbs"])
     # prompt_words = set(transcribtion.split())
 
     
-    # if keywords_1_set & prompt_words and keywords_2_set & prompt_words:
+    # if image_generation_keywords_nouns & prompt_words and image_generation_keywords_verbs & prompt_words:
     plot_request = False
-    for keyword_1 in params["keywords_1"]:
-        if keyword_1 in transcribtion:
-            for keyword_2 in params["keywords_2"]:
-                if keyword_2 in transcribtion:
+    for noun in params["image_generation_keywords_nouns"]:
+        if noun in transcribtion:
+            for verb in params["image_generation_keywords_verbs"]:
+                if verb in transcribtion:
                     plot_request = True
                     break
             if plot_request:
                 break
     if plot_request:
         print("Plotting Request")
-        image_np = np.array(tti_model.run(transcribtion.strip()+ " " + params["image_generation_prompt"]))
+        image_np = np.array(tti_model.run(transcribtion.strip()+ " " + params["image_generation_system_prompt"]))
         image_bytes = image_np.tobytes()
-        lang = detect(transcribtion) 
-        if lang == "de":
-            print("#####\n",lang,"\n#####\n")
-            sio.emit("chat", data= "ALVI  >>>  Hast du weitere Anfragen?")
-            # voice_answer = tts_model.run(entry, language='de')
-            voice_answer = gtts_model.run(entry)
+        
+        if params["conversation_language"] == "multi":
+            lang = detect(transcribtion) 
+            if lang not in ["de", "en"]:
+                lang = default_language
         else:
-            print("#####\n",lang,"\n#####\n")
+            lang = params["conversation_language"]
+        
+        if lang == "de":
+            # print("#####\n",lang,"\n#####\n")
+            sio.emit("chat", data= "ALVI  >>>  Hast du weitere Anfragen?")
+            # voice_answer = gtts_model.run(entry)
+            voice_answer = gtts_model.run(entry, language='de')
+        else:
+            # print("#####\n",lang,"\n#####\n")
             sio.emit("chat", data= "ALVI  >>>  Do you have another request?")
+            # voice_answer = etts_model.run("Do you have another request?")
             voice_answer = etts_model.run("Do you have another request?", language='en')
         sio.emit("image", data= {"image_bytes": image_bytes})
         b_answer = voice_answer.tobytes()
@@ -171,13 +195,19 @@ def generateAnswer(voice_request):
                     continue
                 sio.emit("chat", data= "ALVI  >>>  "+entry)
                 # voice_answer = tts_model.run(entry)
-                lang = detect(entry) 
+                
+                if params["conversation_language"] == "multi":
+                    lang = detect(entry)
+                    if lang not in ["de", "en"]:
+                        lang = default_language
+                else:
+                    lang = params["conversation_language"]
                 if lang == "de":
                     print("#####\n",lang,"\n#####\n")
-                    # voice_answer = tts_model.run(entry, language='de')
                     voice_answer = gtts_model.run(entry)
                 else:
                     print("#####\n",lang,"\n#####\n")
+                    # voice_answer = etts_model.run(entry)
                     voice_answer = etts_model.run(entry, language='en')
                     
                 tts_times.append(time.time()-current_time)
@@ -196,13 +226,18 @@ def generateAnswer(voice_request):
                     current_time = time.time()
                     sio.emit("chat", data= "ALVI >>> "+entry)
                     # voice_answer = tts_model.run(entry)
-                    lang = detect(entry) 
+                    if params["conversation_language"] == "multi":
+                        lang = detect(entry)
+                        if lang not in ["de", "en"]:
+                            lang = default_language
+                    else:
+                        lang = params["conversation_language"]
+                        
                     if lang == "de":
-                        print("#####\n",lang,"\n#####\n")
-                        # voice_answer = tts_model.run(entry, language='de')
+                        # print("#####\n",lang,"\n#####\n")
                         voice_answer = gtts_model.run(entry)
                     else:
-                        print("#####\n",lang,"\n#####\n")
+                        # print("#####\n",lang,"\n#####\n")
                         voice_answer = etts_model.run(entry, language='en')
                     tts_times.append(time.time()-current_time)
                     
