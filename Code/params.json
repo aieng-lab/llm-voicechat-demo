@@ -8,13 +8,15 @@
 "etts_model": "XTTS_V2",
 "tti_model": "StableDiffusion",
 "welcome_message": "Hello ich heiße Alvi, wie kann ich dir helfen?",
-"prompt": "A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.",
-"image_generation_prompt":"The picture should be in the style of a first-grader.",
-"keywords_1": ["Bild","Image", "image"],
-"keywords_2": ["malen", "generieren", "zeichnen", "draw"],
+
+"text_generation_system_prompt": "A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.",
+"image_generation_system_prompt":"The picture should be in the style of a first-grader.",
+"image_generation_keywords_nouns": ["Bild","Image", "image"],
+"image_generation_keywords_verbs": ["malen", "generieren", "zeichnen", "draw"],
+
+"conversation_language": "de",
 "default_language": "en",
-"available_languages": {"Deutsch":"de","English":"en"},
-"type":"quiz"
+"available_languages": {"Deutsch":"de","English":"en", "Multi-Languages": "multi"},
+"type":"quiz",
+"type_list": ["quiz", "normal"]
 }
-
-
