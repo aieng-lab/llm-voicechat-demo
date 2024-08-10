@@ -285,9 +285,18 @@ class WhisperLargeV2(WhisperModel):
             device=self.device,
         )
 
-    def run(self, audio):
-        # return self.p(audio, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
-        return self.p(audio, max_new_tokens=500)["text"]
+    # def run(self, audio):
+    #     # return self.p(audio, max_new_tokens=500, generate_kwargs={"language": None})["text"]
+    #     return self.p(audio, max_new_tokens=500, generate_kwargs={"task": "transcribe"})["text"]
+    
+    def run(self, audio, language):
+        # return self.p(audio, max_new_tokens=500, generate_kwargs={"language": None})["text"]
+        if language=="multi":
+            return self.p(audio, max_new_tokens=500, generate_kwargs={"task": "transcribe"})["text"]
+        elif language == "de":
+            return self.p(audio, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
+        else:
+            return self.p(audio, max_new_tokens=500, generate_kwargs={"task": "translate", "language": "english"})["text"]
 
 
     
@@ -587,7 +596,6 @@ class XTTS_V2(TTSStrategy):
         # self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.model = TTS("tts_models/multilingual/multi-dataset/xtts_v2", gpu=True)
-        # self.model = TTS("tts_models/de/thorsten/vits").to('cuda:0')
 
         self.voice_preset = speaker
 
