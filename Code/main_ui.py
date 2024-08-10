@@ -129,6 +129,7 @@ class Ui_MainWindow(object):
         ###
         self.startButton.setStyleSheet(f'background-color: #555555; font-size: {self.button_text_size}px; color: white;')
         ###
+        
 
         self.gridLayout_4.addWidget(self.startButton, 0, 0, 1, 1)
         
@@ -140,12 +141,22 @@ class Ui_MainWindow(object):
         
         self.gridLayout_4.addWidget(self.resetButton, 0, 1, 1, 1)
         
+        
         self.imageWindow = ImageWindow()
         self.chatWindow = ChatWindow()
         self.chatButton = QtWidgets.QPushButton(self.groupBox1)
         self.chatButton.setStyleSheet(f'background-color: #555555; font-size: {self.button_text_size}px; color: white;')
         
         self.gridLayout_5.addWidget(self.chatButton, 0, 0, 1, 1)
+        
+        self.pushToTalk = QtWidgets.QPushButton(self.groupBox1)
+        self.pushToTalk.setObjectName("pushToTalk")
+        ###
+        self.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.button_text_size}px; color: white;')
+        ###
+        
+
+        self.gridLayout_5.addWidget(self.pushToTalk, 0, 1, 1, 1)
         
         self.buttonsLayout.addLayout(self.gridLayout_4)
         self.buttonsLayout.addLayout(self.gridLayout_5)
@@ -170,6 +181,7 @@ class Ui_MainWindow(object):
         self.startButton.setText(_translate("MainWindow", "Starte Gespräch"))
         self.resetButton.setText(_translate("MainWindow", "Beende Gespräch"))
         self.chatButton.setText(_translate("MainWindow", "Zeig Gespräch an"))
+        self.pushToTalk.setText(_translate("MainWindow", "Click zum Anfragen"))
 
 
 if __name__ == "__main__":

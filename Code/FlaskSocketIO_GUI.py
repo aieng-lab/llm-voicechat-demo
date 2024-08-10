@@ -402,7 +402,10 @@ class MainUI(QtWidgets.QMainWindow):
         self.audio_queue.put_nowait(self.plotdata)
         
         self.speaker_worker = AudioOutputWorker(function=self.getAudio, audio_queue=self.audio_queue)
-        self.speaker_worker.signals.waiting.connect(self.startAPIWorker)
+        if self.params["type"] == "quiz":
+            self.speaker_worker.signals.waiting.connect(self.startPushToTalk)
+        else:
+            self.speaker_worker.signals.waiting.connect(self.startAPIWorker)
         
         self.speaker_worker.signals.status.connect(self.updateStatus)
         self.threadpool.start(self.speaker_worker)
@@ -412,16 +415,23 @@ class MainUI(QtWidgets.QMainWindow):
         self.signals = GUISignals()
         self.logs={}
 
-        
- 
         self.ui.startButton.clicked.connect(self.start)
         self.ui.resetButton.clicked.connect(self.reset)
         self.ui.chatButton.clicked.connect(self.showChatWindow)
+        self.ui.pushToTalk.clicked.connect(self.startAPIWorker)
 
 
         self.ui.startButton.setEnabled(True)
         self.ui.resetButton.setEnabled(True)
         self.ui.chatButton.setEnabled(True)
+        self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: gray;')
+        self.ui.pushToTalk.setEnabled(False)
+        
+    
+    def startPushToTalk(self):
+        self.updateStatus("Ich bin verfügbar ...")
+        self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: white;')
+        self.ui.pushToTalk.setEnabled(True)
     
     def showChatWindow(self):
         self.ui.chatWindow.show()
@@ -438,7 +448,8 @@ class MainUI(QtWidgets.QMainWindow):
         self.stopped = True
         self.speaking_allowed = False
         self.speaker_worker = None
-        
+        self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: gray;')
+        self.ui.pushToTalk.setEnabled(False)
         
         with self.plot_queue.mutex:
             self.plot_queue.queue.clear()
@@ -451,6 +462,7 @@ class MainUI(QtWidgets.QMainWindow):
         #Change BOT Status
         self.displayStatus("Ich schlafe  ... ")
         self.ui.chatWindow.text.setText("")
+        self.ui.pushToTalk.setEnabled(False)
         
     def updateChat(self, data):
         self.ui.chatWindow.text.append(data)
@@ -484,7 +496,10 @@ class MainUI(QtWidgets.QMainWindow):
             self.speaking_allowed = True
             self.plotting = True
             self.speaker_worker = AudioOutputWorker(function=self.getAudio, audio_queue=self.audio_queue)
-            self.speaker_worker.signals.waiting.connect(self.startAPIWorker)
+            if self.params["type"] == "quiz":
+                self.speaker_worker.signals.waiting.connect(self.startPushToTalk)
+            else:
+                self.speaker_worker.signals.waiting.connect(self.startAPIWorker)
             self.speaker_worker.signals.status.connect(self.updateStatus)
             self.threadpool.start(self.speaker_worker)
             self.init = True
@@ -521,6 +536,8 @@ class MainUI(QtWidgets.QMainWindow):
     def startAPIWorker(self):
         """Starts the api_worker.
         """
+        self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: gray;')
+        self.ui.pushToTalk.setEnabled(False)
         self.init=False
         api_worker = APIWorker()
         api_worker.signals.start.connect(self.displayStatus)
