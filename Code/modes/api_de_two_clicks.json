@@ -30,11 +30,6 @@
 
 "openai_api_key" : "salim",
 "openai_base_url" : "https://llm-api.aieng.fim.uni-passau.de/v1/",
-"openai_model" : "Mixtral-8x7B-Instruct-v0.1",
-
-
-"comments":
-{"openai_key_old": "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",
-"openai_key": "sk-uwmzJxrWEMQxWrKm_-Y76WDhGipcAnDeH05B8lQrE6T3BlbkFJXVnA3zHjP5iLELOuKVWOvSI_1yz6v0oCGtQENDH-0A"}
+"openai_model" : "Mixtral-8x7B-Instruct-v0.1"
 
 }
