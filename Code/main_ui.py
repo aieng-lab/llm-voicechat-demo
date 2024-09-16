@@ -59,8 +59,25 @@ class ChatWindow(QtWidgets.QWidget):
         layout.addWidget(self.text)
         self.setLayout(layout)
         
+class HoldButton(QtWidgets.QPushButton):
+    def __init__(self, label, parent=None):
+        super().__init__(label, parent)
+        self.setCheckable(True)
+
+    def mousePressEvent(self, event):
+        self.setDown(True)
+        self.pressed.emit()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        self.setDown(False)
+        self.released.emit()
+        super().mouseReleaseEvent(event)
         
-class Ui_MainWindow(object):        
+        
+class Ui_MainWindow(object):
+    def __init__(self, params) -> None:
+        self.params=params
     
     def setupUi(self, MainWindow, window_size):
         MainWindow.setObjectName("MainWindow")
@@ -149,8 +166,13 @@ class Ui_MainWindow(object):
         
         self.gridLayout_5.addWidget(self.chatButton, 0, 0, 1, 1)
         
-        self.pushToTalk = QtWidgets.QPushButton(self.groupBox1)
-        self.pushToTalk.setObjectName("pushToTalk")
+
+        if self.params["type"] == "push_to_talk":
+            self.pushToTalk = HoldButton(label="pushToTalk" ,parent=self.groupBox1)
+        else:
+            self.pushToTalk = QtWidgets.QPushButton(self.groupBox1)
+            self.pushToTalk.setObjectName("pushToTalk")
+
         ###
         self.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.button_text_size}px; color: white;')
         ###

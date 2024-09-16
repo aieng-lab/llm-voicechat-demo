@@ -18,9 +18,6 @@ DetectorFactory.seed = 0
 if not os.path.exists(logs_path):
     os.makedirs(logs_path)
     
-tts_model = None
-stt_model = None
-ttt_model = None
 
 app = Flask(__name__)
 sio = SocketIO(app, async_mode = "threading")
@@ -39,15 +36,16 @@ def get_instance(name, args=None):
         instance =Klass()
     return instance
 
-with open(main_path+'/params.json') as params_file:
-    params = json.load(params_file)
+# with open(main_path+'/params.json') as params_file:
+#     params = json.load(params_file)
     
 def load_models(params):
     """Loads all there models: Speech-to-Text, Text-to-Text, Text-to-Speech models.
     Returns:
         stt_model (STTStrategy): Speech-to-Text model, default = WhisperLargeV2.
         ttt_model (TTTStrategy): Text-to-Text model, default = FastChatModel.
-        tts_model (TTSStrategy): Text-to-Speech model default = XTTS_V2.
+        etts_model (TTSStrategy): English Text-to-Speech model default = XTTS_V2.
+        gtts_model (TTSStrategy): German Text-to-Speech model default = ThorstenVits.
         tti_model (TTIStrategy): Text-to-Image deffusion model, default = StableDiffusion
     """
     # print("\nLoading Whisper ...\n")
@@ -55,7 +53,7 @@ def load_models(params):
     stt_model = get_instance(params["stt_model"])
     # print("\nLoading FastChat ...\n")
     # ttt_model = FastChatModel()
-    ttt_model = get_instance(params["ttt_model"], params["text_generation_system_prompt"])
+    ttt_model = get_instance(params["ttt_model"], params)
     
     # print("\nLoading StableDiffusion ...\n")
     # tts_model = StableDiffusion()
@@ -82,7 +80,6 @@ def load_models(params):
     return stt_model, ttt_model, tti_model, gtts_model, etts_model, default_language
 
 
-stt_model, ttt_model, tti_model, gtts_model, etts_model, default_language = load_models(params)
 
 
 @sio.on("connect")
@@ -97,6 +94,7 @@ def disconnect():
     """Triggered when a client disconnect.
     Clears chat history as well.
     """
+    global ttt_model
     ttt_model.clear_history()
     print("Client disconnected")
 
@@ -107,6 +105,7 @@ def reset():
     Args:
         sid (int): Clients id, assigned automatically by the socket server.
     """
+    global ttt_model
     ttt_model.clear_history()
     print(" \nChat history is reset. \n#####")    
     return "Reset"
@@ -121,7 +120,7 @@ def generateAnswer(voice_request):
     Args:
         voice_request (bytes): Recorded voice request from client.
     """
-    global params
+    global params, stt_model, ttt_model, etts_model, gtts_model,tti_model
     first_response = True
     logs = {}
     start_time = time.time()
@@ -186,13 +185,16 @@ def generateAnswer(voice_request):
             if len(out)<1 or out.isspace():
                 continue
             if out == "END":
+                if len(entry)<1:
+                    entry = params["not_able_to_respond_message"]
+                    sio.emit("chat", data= "ALVI  >>>  "+entry)
+                    print(entry)
+                    continue
                 print("\n##############\n")
                 print(entry)
                 print("\n##############\n")
                 current_time = time.time()
-                if len(entry)<1:
-                    entry = "Entschuldigung, ich konnte deine Anfrage nicht beantworten. "
-                    continue
+
                 sio.emit("chat", data= "ALVI  >>>  "+entry)
                 # voice_answer = tts_model.run(entry)
                 
@@ -276,6 +278,45 @@ def receive():
     t.start()
     return {"response": received_time}
 
+
+
+@app.route("/request_welcome_message", methods=["POST", "GET"])
+def generateWM():
+    """Receives the text of the welcome message, generates an audio of it and save the audio in welcome_message.wav.
+    Returns:
+        (dict): Resonse message containing the emitting time.
+    """
+    global etts_model, gtts_model
+    received_time = time.time()
+    print("\nRequest is recieved\n")
+    query = request.json
+    if params["conversation_language"]=="en":
+        etts_model.run_to_file(query, language="en", filepath="welcome_message.wav")
+    else:
+        gtts_model.run_to_file(query, filepath="welcome_message.wav")
+    return {"response": received_time}
+
 if __name__ == '__main__':
+    default_json_path = main_path + '/params.json'
+    parser = argparse.ArgumentParser(description="Process a params file.")
+    parser.add_argument(
+        'json_file',
+        type=str,
+        nargs='?',  # Makes the argument optional
+        default=default_json_path,  # Default value if no argument is passed
+        help=f"Path to the JSON file (default: {main_path}/params.json)"
+    )
     
+    # Parse arguments
+    args = parser.parse_args()
+    
+    # Get absolute path of the json file
+    params_file_path = os.path.abspath(args.json_file)
+    
+    
+    with open(params_file_path) as params_file:
+        params = json.load(params_file)
+        params_file.close()
+    
+    stt_model, ttt_model, tti_model, gtts_model, etts_model, default_language = load_models(params)
     sio.run(app, host="0.0.0.0", port="5000",debug=False, use_reloader=False, log_output=False)

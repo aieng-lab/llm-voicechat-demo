@@ -31,6 +31,8 @@ import asyncio
 from functools import cached_property
 from main_ui import Ui_MainWindow
 import PIL
+import argparse
+
 
 
 #Get this files path.
@@ -171,35 +173,94 @@ class APISignals(QtCore.QObject):
     finished = QtCore.pyqtSignal()
     result = QtCore.pyqtSignal(bytes)
 
-class APIWorker(QtCore.QRunnable):
+# class APIWorker(QtCore.QRunnable):
+class APIWorker(QtCore.QThread):
     """QRunnable to record audio from microphone and emit data to ClientWorker.
     """
-    def __init__(self):
+    def __init__(self, params):
         super(APIWorker, self).__init__()
         self.r = sr.Recognizer()
         self.signals = APISignals()
+        self.params=params
+        self.mutex = QtCore.QMutex()
+        self.activated = False
         
         
     def run(self):
+        self.activated = True
         # print("STTWorker\n")
-
-        with sr.Microphone() as source:
-            # print("Microphone is started ... \n")
-            # Adjust the microphone to ignore unwanted noises.
-            self.r.adjust_for_ambient_noise(source)
-            
-            # print("Microphone is listening ... \n")
-            #Emit a status signal to change BOT Status
+        if not self.params["type"]=="no_click":
+            print("run")
             self.signals.start.emit("Ich höre zu  ... ")
-            #Start recording
-            audio = self.r.listen(source)
-            #Emit a status signal to change BOT Status
-            self.signals.start.emit("Ich überlege was ich antworte  ... ")
+            audio_bytes = self.pushToTalk()
+            print("audio returtned")
+        else:
+            with sr.Microphone() as source:
+                # print("Microphone is started ... \n")
+                # Adjust the microphone to ignore unwanted noises.
+                self.r.adjust_for_ambient_noise(source)
+                
+                # print("Microphone is listening ... \n")
+                #Emit a status signal to change BOT Status
+                self.signals.start.emit("Ich höre zu  ... ")
+                #Start recording
+                audio = self.r.listen(source)
+                audio_bytes = audio.get_flac_data()
+        #Emit a status signal to change BOT Status
+        self.signals.start.emit("Ich überlege was ich antworte  ... ")
+        # print(audio_bytes)
+        #Emit the recorded data as bytes.
+        self.signals.result.emit(audio_bytes)
+        self.activated = False
+        self.signals.finished.emit()
             
-            #Emit the recorded data as bytes.
-            self.signals.result.emit(audio.get_flac_data())
-            self.signals.finished.emit()	
-            
+    def pushToTalk(self):
+        print("pushToTalk")
+        self.chunk = 2048  # Record in chunks of 1024 samples
+        self.format = pyaudio.paInt16  # 16 bits per sample
+        self.channels = 2  # Stereo
+        self.rate = 44100  # Record at 44100 samples per second
+        self.p = pyaudio.PyAudio()
+        self.stream = None
+        self.frames = []
+        self.recording = False
+        try:
+            self.recording = True
+            self.stream = self.p.open(format=self.format,
+                                      channels=self.channels,
+                                      rate=self.rate,
+                                      input=True,
+                                      frames_per_buffer=self.chunk)
+            # self.update_label.emit("Recording...")
+            self.stream.start_stream()
+            while self.recording:
+                # print("recording")
+                data = self.stream.read(self.chunk, exception_on_overflow=False)
+                self.frames.append(data)
+        except Exception as e:
+            print(f"Error: {e}")
+            # self.update_label.emit(f"Error: {e}")
+        finally:
+            if self.stream:
+                print("stopped")
+                self.stream.stop_stream()
+                self.stream.close()
+            audio_bytes = b''.join(self.frames)
+            audio_data = sr.AudioData(audio_bytes, self.rate, 2)  # 2 is for 16-bit samples
+        return audio_data.get_flac_data()
+                
+                
+    def stop(self):
+        print("try to stopped")
+        with QtCore.QMutexLocker(self.mutex):
+            self.recording = False
+        self.quit()
+        self.wait()  # Wait for the recording thread to finish
+        
+        
+    def __del__(self):
+        if hasattr(self, 'p'):
+            self.p.terminate()
 
 
 class ClientWorker(QtCore.QRunnable):
@@ -354,7 +415,7 @@ class MainUI(QtWidgets.QMainWindow):
         
         # Load a pre-designed GUI.
         # self.ui = uic.loadUi(main_path+'/main.ui',self)
-        self.ui = Ui_MainWindow()
+        self.ui = Ui_MainWindow(params = params)
         self.ui.setupUi(self, params["window_size"])
         self.showMaximized()
         # self.showFullScreen()
@@ -393,6 +454,12 @@ class MainUI(QtWidgets.QMainWindow):
         self.plotting = True
         self.stopped = False
         self.speaking_allowed =True
+        
+        self.api_worker = APIWorker(self.params)
+        self.api_worker.signals.start.connect(self.displayStatus)
+        self.api_worker.signals.start.connect(self.changeColor)
+        self.api_worker.signals.result.connect(self.request)
+        self.api_worker.signals.finished.connect(self.changeColor)
     
         self.ui.startButton.setEnabled(False)
         self.ui.resetButton.setEnabled(False)
@@ -402,7 +469,10 @@ class MainUI(QtWidgets.QMainWindow):
         self.audio_queue.put_nowait(self.plotdata)
         
         self.speaker_worker = AudioOutputWorker(function=self.getAudio, audio_queue=self.audio_queue)
-        if self.params["type"] == "quiz":
+        if self.params["type"] == "push_to_talk":
+            self.speaker_worker.signals.waiting.connect(self.startPushToTalk)
+            
+        elif self.params["type"] == "two_clicks":
             self.speaker_worker.signals.waiting.connect(self.startPushToTalk)
         else:
             self.speaker_worker.signals.waiting.connect(self.startAPIWorker)
@@ -414,24 +484,48 @@ class MainUI(QtWidgets.QMainWindow):
         self.client_worker = None
         self.signals = GUISignals()
         self.logs={}
-
         self.ui.startButton.clicked.connect(self.start)
         self.ui.resetButton.clicked.connect(self.reset)
         self.ui.chatButton.clicked.connect(self.showChatWindow)
-        self.ui.pushToTalk.clicked.connect(self.startAPIWorker)
+        # self.ui.pushToTalk.clicked.connect(self.startAPIWorker)
+        if self.params["type"] == "push_to_talk":
+            self.ui.pushToTalk.setCheckable(True)
+            self.ui.pushToTalk.pressed.connect(self.startAPIWorker)
+            self.ui.pushToTalk.released.connect(self.stopPushToTalk)
+        
+        elif self.params["type"] == "two_clicks":
+            self.ui.pushToTalk.setEnabled(False)
+            self.ui.pushToTalk.clicked.connect(self.toggle)
 
 
         self.ui.startButton.setEnabled(True)
         self.ui.resetButton.setEnabled(True)
         self.ui.chatButton.setEnabled(True)
         self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: gray;')
-        self.ui.pushToTalk.setEnabled(False)
+        # self.ui.pushToTalk.setEnabled(False)
+        # self.api_worker=None
         
     
     def startPushToTalk(self):
         self.updateStatus("Ich bin verfügbar ...")
-        self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: white;')
         self.ui.pushToTalk.setEnabled(True)
+        self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: white;')
+        
+    def stopPushToTalk(self):
+        if self.api_worker is not None:
+            self.api_worker.stop()
+            self.ui.pushToTalk.setEnabled(False)
+            self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: grau;')
+    
+    def toggle(self):
+        if not self.api_worker.activated:
+            self.ui.pushToTalk.setText("Klick nochmal zu stoppen")
+            self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: white;')
+            self.startAPIWorker()
+        else:
+            self.stopPushToTalk()
+            self.ui.pushToTalk.setText("Click zum Anfragen")
+            self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: gray;')
     
     def showChatWindow(self):
         self.ui.chatWindow.show()
@@ -479,9 +573,6 @@ class MainUI(QtWidgets.QMainWindow):
         Play a pre-generated welcome message.
         If the Reset is already clicked, re-initialize and start both client_worker and speaker_worker.
         """
-        wf = wave.open("welcome_message_2.wav")
-        data = wf.readframes(-1)
-        self.audio_queue.put_nowait(data)
         # print("Initialiazing is finished.\n")
         if self.client_worker is None:
             self.client_worker = ClientWorker(self.client)
@@ -491,12 +582,20 @@ class MainUI(QtWidgets.QMainWindow):
             self.client.end_receive.connect(self.startSpeakerWorker)
             # self.client.recorded_times.connect(self.saveLogs)
             self.client_pool.start(self.client_worker)
+                        
+        self.requestWMGenerating(self.params["welcome_message"])
+        self.params["window_size"] = QtWidgets.QDesktopWidget().screenGeometry(-1)
+            
+        wf = wave.open("welcome_message.wav")
+        data = wf.readframes(-1)
+        self.audio_queue.put_nowait(data)
+        
         if self.speaker_worker is None:
             self.stopped = False
             self.speaking_allowed = True
             self.plotting = True
             self.speaker_worker = AudioOutputWorker(function=self.getAudio, audio_queue=self.audio_queue)
-            if self.params["type"] == "quiz":
+            if self.params["type"] == "push_to_talk":
                 self.speaker_worker.signals.waiting.connect(self.startPushToTalk)
             else:
                 self.speaker_worker.signals.waiting.connect(self.startAPIWorker)
@@ -507,6 +606,16 @@ class MainUI(QtWidgets.QMainWindow):
         self.ui.chatWindow.text.append("ALVI  >>>  "+ self.params["welcome_message"])
             
         self.startSpeakerWorker()
+        
+    def requestWMGenerating(self, welcome_message):
+        url = "http://localhost:5000/request_welcome_message"
+        # query = {"content":welcome_message}
+        response = requests.get(url, json=json.dumps(welcome_message, ensure_ascii=False))
+        self.params["old_welcome_message"] = welcome_message
+        self.params["window_size"] = None
+        with open(main_path+'/params.json', "w") as params_file:
+            json.dump(self.params, params_file)
+            params_file.close()
     
     def displayStatus(self, text):
         """Display a text on GUI.
@@ -536,16 +645,17 @@ class MainUI(QtWidgets.QMainWindow):
     def startAPIWorker(self):
         """Starts the api_worker.
         """
-        self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: gray;')
-        self.ui.pushToTalk.setEnabled(False)
+        # self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: gray;')
+        # self.ui.pushToTalk.setEnabled(False)
         self.init=False
-        api_worker = APIWorker()
-        api_worker.signals.start.connect(self.displayStatus)
-        api_worker.signals.start.connect(self.changeColor)
-        api_worker.signals.result.connect(self.request)
-        api_worker.signals.finished.connect(self.changeColor)
+        # self.api_worker = APIWorker(self.params)
+        # self.api_worker.signals.start.connect(self.displayStatus)
+        # self.api_worker.signals.start.connect(self.changeColor)
+        # self.api_worker.signals.result.connect(self.request)
+        # self.api_worker.signals.finished.connect(self.changeColor)
 
-        self.threadpool.start(api_worker)
+        # self.threadpool.start(self.api_worker)
+        self.api_worker.start()
 
     def changeColor(self):
         self.mic = not self.mic
@@ -557,6 +667,7 @@ class MainUI(QtWidgets.QMainWindow):
         Args:
             data (bytes): the recorded audio.
         """
+        # print(data)
         url = "http://localhost:5000/request"
         starting_time = time.time()
         # print("Request is sent.\n")
@@ -583,7 +694,7 @@ class MainUI(QtWidgets.QMainWindow):
             with open(file_path, "w") as file:
                 json.dump(self.logs, file)
                 # print(file_path)
-
+                    
     def getAudio(self):
         """Process the data in audio queue to be played and plotted.
         """
@@ -598,22 +709,20 @@ class MainUI(QtWidgets.QMainWindow):
             
             # The welcome message is already recorded in the required format.
             # So it doesn't need extra processing as for audio from server.
-            if self.init:
-                width = 2
-                channels=1
-                rate=24000
-                max_int16 = 2**16
-                OCHUNK = 2 * CHUNK
-                
-                #initialize stream
-                stream = p.open(format=p.get_format_from_width(width),
-                                channels=channels,
-                                rate=rate,
-                                output=True,
-                                frames_per_buffer=CHUNK)
+            width = 2
+            channels=1
+            rate=24000
+            OCHUNK = 2 * CHUNK
+            #initialize stream
+            stream = p.open(format=p.get_format_from_width(width),
+                            channels=channels,
+                            rate=rate,
+                            output=True,
+                            frames_per_buffer=CHUNK)
+            if self.init:                                
+                max_int16 = 2**16        
                 # print("Start audio\n")
                 plotting = True
-                
                 while plotting:
                     if len(data) > OCHUNK:
                         out = data[:OCHUNK]
@@ -641,17 +750,7 @@ class MainUI(QtWidgets.QMainWindow):
                 arr = np.frombuffer(data, dtype=np.float32)
                 sf.write("tmp.wav", arr, samplerate=24000)
                 wf = wave.open('tmp.wav', 'rb')
-                width =2
-                channels=1
-                rate = 24000
-                max_int16 = 2**15
-                OCHUNK = 2 * CHUNK
-                stream = p.open(format=p.get_format_from_width(width),
-                                channels=channels,
-                                rate=rate,
-                                output=True,
-                                frames_per_buffer=CHUNK)
-
+                max_int16 = 2**15    
                 out = wf.readframes(CHUNK)
                 while out:
                     try:
@@ -758,8 +857,27 @@ class MainUI(QtWidgets.QMainWindow):
         # confirmation = QtWidgets.QMessageBox.question(self, "Confirmation", "Are you sure you want to close the application?", QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)    
         
 def main():
-    with open(main_path+'/params.json') as params_file:
+    default_json_path = main_path + '/params.json'
+    parser = argparse.ArgumentParser(description="Process a params file.")
+    parser.add_argument(
+        'json_file',
+        type=str,
+        nargs='?',  # Makes the argument optional
+        default=default_json_path,  # Default value if no argument is passed
+        help=f"Path to the JSON file (default: {main_path}/params.json)"
+    )
+    
+    # Parse arguments
+    args = parser.parse_args()
+    
+    # Get absolute path of the json file
+    params_file_path = os.path.abspath(args.json_file)
+    
+    
+    with open(params_file_path) as params_file:
         params = json.load(params_file)
+        params_file.close()
+        
     app = QtWidgets.QApplication(sys.argv)
     # screen = app.primaryScreen()
     # params["window_size"] = screen.size()

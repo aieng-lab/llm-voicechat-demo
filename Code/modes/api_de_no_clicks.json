@@ -3,21 +3,26 @@
 "linewidth": 8, 
 "color": "#04d9ff", 
 "stt_model": "WhisperLargeV2", 
-"ttt_model": "FastChatModel", 
+"ttt_model": "OpenAIAPI", 
 "gtts_model": "ThorstenVits", 
 "etts_model": "XTTS_V2", 
 "tti_model": "StableDiffusion", 
+
 "welcome_message": "Hallo ich hei\u00dfe Alvi, wie kann ich dir helfen?", 
 "old_welcome_message": "Hallo ich hei\u00dfe Alvi, wie kann ich dir helfen?", 
-"text_generation_system_prompt": "A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed and polite answers to the user's questions.", 
+
+"text_generation_system_prompt": "Ein Chat zwischen einem neugierigen User und einem künstlichen Intelligenz Assistant. Der Assistant gibt hilfreiche, ausführliche und höfliche Antworten auf die Fragen des Users.", 
 "image_generation_system_prompt": "The picture should be in the style of a first-grader.", 
 "image_generation_keywords_nouns": ["Bild", "Image", "image"], 
 "image_generation_keywords_verbs": ["malen", "generieren", "zeichnen", "draw"], 
+
 "conversation_language": "de", 
-"default_language": "en", 
+"default_language": "de", 
+
 "available_languages": {"Deutsch": "de", "English": "en", 
 "Multi-Languages": "multi"}, 
-"type": "two_clicks", 
+
+"type": "no_click", 
 "type_list": ["push_to_talk", "two_clicks", "no_click"], 
 "window_size": null,
 
