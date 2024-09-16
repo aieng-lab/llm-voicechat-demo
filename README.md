@@ -46,7 +46,14 @@ pip install -r requirements.txt
     python FlaskSocketIO_GUI.py
     ```
 
-
+   - If you want to pass a predefined setting, you can directly pass the path to .json parameters file. Ex:
+   ```
+    python FlaskSocketIO_backend.py modes/vi_de_no_clicks.json
+   ```
+    - In the second terminal run:
+   ```
+    python FlaskSocketIO_GUI.py modes/vi_de_no_clicks.json
+   ```
 ## How to use:
 
 After executing the commands in Step 5, wait until all components are loaded.
