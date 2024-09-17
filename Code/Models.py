@@ -295,13 +295,13 @@ class WhisperLargeV2(WhisperModel):
     
     def run(self, audio, language):
         # return self.p(audio, max_new_tokens=500, generate_kwargs={"language":"german", "task":"transcribe"})["text"]
-        return self.p(audio, generate_kwargs={"language":"german"})["text"]
-        # if language=="multi":
-        #     return self.p(audio, max_new_tokens=500, generate_kwargs={"task": "transcribe"})["text"]
-        # elif language == "de":
-        #     return self.p(audio, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
-        # else:
-        #     return self.p(audio, max_new_tokens=500, generate_kwargs={"task": "translate", "language": "english"})["text"]
+        # return self.p(audio, generate_kwargs={"language":"german"})["text"]
+        if language=="multi":
+            return self.p(audio, max_new_tokens=500, generate_kwargs={"task": "transcribe"})["text"]
+        elif language == "de":
+            return self.p(audio, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
+        else:
+            return self.p(audio, max_new_tokens=500, generate_kwargs={"language": "english"})["text"]
 
 
     
