@@ -14,3 +14,4 @@ pyaudio==0.2.13
 flask-socketio==5.3.6
 diffusers==0.29.1
 langdetect==1.0.9
+openai==1.43.0

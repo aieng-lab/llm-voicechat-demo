@@ -595,10 +595,10 @@ class MainUI(QtWidgets.QMainWindow):
             self.speaking_allowed = True
             self.plotting = True
             self.speaker_worker = AudioOutputWorker(function=self.getAudio, audio_queue=self.audio_queue)
-            if self.params["type"] == "push_to_talk":
-                self.speaker_worker.signals.waiting.connect(self.startPushToTalk)
+            if self.params["type"] == "no_click":
+                self.speaker_worker.signals.waiting.connect(self.startAPIWorker)                
             else:
-                self.speaker_worker.signals.waiting.connect(self.startAPIWorker)
+                self.speaker_worker.signals.waiting.connect(self.startPushToTalk)
             self.speaker_worker.signals.status.connect(self.updateStatus)
             self.threadpool.start(self.speaker_worker)
             self.init = True
