@@ -154,8 +154,9 @@ def receive_image():
     """
     received_time = time.time()
     print("\nRequest is recieved\n")
-    image = request.json
-    sio.emit("image", image)
+    image = request.data
+    #print(image)
+    sio.emit("image", data= {"image_bytes": image})
     query_queue.put_nowait("Hast du weitere Anfragen?")
     return {"response": received_time}
 

@@ -9,7 +9,7 @@
 
 
 from PyQt5 import QtCore, QtWidgets, QtGui
-
+import sys
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
@@ -198,7 +198,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "Alvi - Das freundliche, Passauer KI Model"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "VITA - Das freundliche, Passauer KI Model"))
         self.label_6.setText(_translate("MainWindow", "Ich schlafe  ..."))
         self.startButton.setText(_translate("MainWindow", "Starte Gespräch"))
         self.resetButton.setText(_translate("MainWindow", "Beende Gespräch"))
@@ -207,7 +207,6 @@ class Ui_MainWindow(object):
 
 
 if __name__ == "__main__":
-    import sys
     app = QtWidgets.QApplication(sys.argv)
     MainWindow = QtWidgets.QMainWindow()
     ui = Ui_MainWindow()
