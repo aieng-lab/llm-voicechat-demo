@@ -296,12 +296,18 @@ class WhisperLargeV2(WhisperModel):
     def run(self, audio, language):
         # return self.p(audio, max_new_tokens=500, generate_kwargs={"language":"german", "task":"transcribe"})["text"]
         # return self.p(audio, generate_kwargs={"language":"german"})["text"]
-        if language=="multi":
-            return self.p(audio, max_new_tokens=500, generate_kwargs={"task": "transcribe"})["text"]
-        elif language == "de":
-            return self.p(audio, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
-        else:
-            return self.p(audio, max_new_tokens=500, generate_kwargs={"language": "english"})["text"]
+        try:
+            if language=="multi":
+                return self.p(audio, max_new_tokens=500, generate_kwargs={"task": "transcribe"})["text"]
+            elif language == "de":
+                return self.p(audio, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
+            else:
+                return self.p(audio, max_new_tokens=500, generate_kwargs={"language": "english"})["text"]
+        except:
+            if language == "de":
+                return "Es tut mir Leid, Es gab ein Problem mit dem aufgenommenen Audio. Kannst du deine Anfrage nochmal stellen?"
+            else:
+                return "I'm sorry, there was a problem with the recorded audio. Can you make your request again?"
 
 
     

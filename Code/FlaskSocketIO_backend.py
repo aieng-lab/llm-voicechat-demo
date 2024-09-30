@@ -167,14 +167,13 @@ def generateAnswer(voice_request):
         
         if lang == "de":
             # print("#####\n",lang,"\n#####\n")
-            sio.emit("chat", data= "ALVI  >>>  Hast du weitere Anfragen?")
-            # voice_answer = gtts_model.run(entry)
-            voice_answer = gtts_model.run(entry, language='de')
+            sio.emit("chat", data= f"{params['app_name']}  >>>  Hast du weitere Anfragen?")
+            voice_answer = gtts_model.run("Hast du weitere Anfragen?")
         else:
             # print("#####\n",lang,"\n#####\n")
-            sio.emit("chat", data= "ALVI  >>>  Do you have another request?")
+            sio.emit("chat", data= "VITA  >>>  Do you have another request?")
             # voice_answer = etts_model.run("Do you have another request?")
-            voice_answer = etts_model.run("Do you have another request?", language='en')
+            voice_answer = etts_model.run(text="Do you have another request?", language='en')
         sio.emit("image", data= {"image_bytes": image_bytes})
         b_answer = voice_answer.tobytes()
         data = {"voice_answer": b_answer}
@@ -187,7 +186,7 @@ def generateAnswer(voice_request):
             if out == "END":
                 if len(entry)<1:
                     entry = params["not_able_to_respond_message"]
-                    sio.emit("chat", data= "ALVI  >>>  "+entry)
+                    sio.emit("chat", data= f"{params['app_name']}  >>>  "+entry)
                     print(entry)
                     continue
                 print("\n##############\n")
@@ -195,7 +194,7 @@ def generateAnswer(voice_request):
                 print("\n##############\n")
                 current_time = time.time()
 
-                sio.emit("chat", data= "ALVI  >>>  "+entry)
+                sio.emit("chat", data= f"{params['app_name']}  >>>  "+entry)
                 # voice_answer = tts_model.run(entry)
                 
                 if params["conversation_language"] == "multi":
@@ -226,7 +225,7 @@ def generateAnswer(voice_request):
                     print(entry)
                     print("\n##############\n")
                     current_time = time.time()
-                    sio.emit("chat", data= "ALVI >>> "+entry)
+                    sio.emit("chat", data= f"{params['app_name']} >>> "+entry)
                     # voice_answer = tts_model.run(entry)
                     if params["conversation_language"] == "multi":
                         lang = detect(entry)

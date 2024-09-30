@@ -603,7 +603,7 @@ class MainUI(QtWidgets.QMainWindow):
             self.threadpool.start(self.speaker_worker)
             self.init = True
         
-        self.ui.chatWindow.text.append("ALVI  >>>  "+ self.params["welcome_message"])
+        self.ui.chatWindow.text.append(f"{self.params['app_name']}  >>>  "+ self.params["welcome_message"])
             
         self.startSpeakerWorker()
         
@@ -613,9 +613,9 @@ class MainUI(QtWidgets.QMainWindow):
         response = requests.get(url, json=json.dumps(welcome_message, ensure_ascii=False))
         self.params["old_welcome_message"] = welcome_message
         self.params["window_size"] = None
-        with open(main_path+'/params.json', "w") as params_file:
-            json.dump(self.params, params_file)
-            params_file.close()
+        # with open(main_path+'/params.json', "w") as params_file:
+        #     json.dump(self.params, params_file)
+        #     params_file.close()
     
     def displayStatus(self, text):
         """Display a text on GUI.
