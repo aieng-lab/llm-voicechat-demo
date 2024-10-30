@@ -164,7 +164,7 @@ class Ui_MainWindow(object):
         self.chatButton = QtWidgets.QPushButton(self.groupBox1)
         self.chatButton.setStyleSheet(f'background-color: #555555; font-size: {self.button_text_size}px; color: white;')
         
-        self.gridLayout_5.addWidget(self.chatButton, 0, 0, 1, 1)
+        self.gridLayout_5.addWidget(self.chatButton, 0, 1, 1, 1)
         
 
         if self.params["type"] == "push_to_talk":
@@ -178,7 +178,7 @@ class Ui_MainWindow(object):
         ###
         
 
-        self.gridLayout_5.addWidget(self.pushToTalk, 0, 1, 1, 1)
+        self.gridLayout_5.addWidget(self.pushToTalk, 0, 0, 1, 1)
         
         self.buttonsLayout.addLayout(self.gridLayout_4)
         self.buttonsLayout.addLayout(self.gridLayout_5)
