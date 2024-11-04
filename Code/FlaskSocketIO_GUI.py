@@ -453,7 +453,8 @@ class MainUI(QtWidgets.QMainWindow):
         self.record_allowed = True
         self.plotting = True
         self.stopped = False
-        self.speaking_allowed =True
+        self.speaking_allowed = True
+        self.stop_audio = False
         
         self.api_worker = APIWorker(self.params)
         self.api_worker.signals.start.connect(self.displayStatus)
@@ -484,7 +485,7 @@ class MainUI(QtWidgets.QMainWindow):
         self.signals = GUISignals()
         self.logs={}
         self.ui.startButton.clicked.connect(self.start)
-        self.ui.resetButton.clicked.connect(self.reset)
+        self.ui.resetButton.clicked.connect(self.stop_answer)
         self.ui.chatButton.clicked.connect(self.showChatWindow)
         # self.ui.pushToTalk.clicked.connect(self.startAPIWorker)
         if self.params["type"] == "push_to_talk":
@@ -505,8 +506,9 @@ class MainUI(QtWidgets.QMainWindow):
         # self.api_worker=None
         
     
-    def startPushToTalk(self):
-        self.updateStatus("Ich bin verfügbar ...")
+    def startPushToTalk(self, update_status=True):
+        #if update_status:
+        #    self.updateStatus("Ich bin verfügbar ...")
         self.ui.pushToTalk.setEnabled(True)
         self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: white;')
         
@@ -514,35 +516,34 @@ class MainUI(QtWidgets.QMainWindow):
         if self.api_worker is not None:
             self.api_worker.stop()
             self.ui.pushToTalk.setEnabled(False)
-            self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: grau;')
+            self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: gray;')
     
     def toggle(self):
         if not self.api_worker.activated:
-            self.ui.pushToTalk.setText("Klick nochmal zu stoppen")
+            self.ui.pushToTalk.setText("Klick nochmal, um zu stoppen")
             self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: white;')
             self.startAPIWorker()
         else:
             self.stopPushToTalk()
-            self.ui.pushToTalk.setText("Click zum Anfragen")
+            self.ui.pushToTalk.setText("Klick zum Anfragen")
             self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: gray;')
-    
+
+            if self.stop_audio:
+                self.stop_audio = False
+                self.restart()
+
     def showChatWindow(self):
         self.ui.chatWindow.show()
         
         
-    def reset(self):
-        """Reset the project back to the starting point.
-        It doesn't terminate the current task, but it stops the all future ones.
+    def stop_answer(self):
+        """Stops the current answer, i.e., stops the audio speakers and the plotting.
         """
-        if not self.speaker_worker is None:
-            self.speaker_worker.stop_running()
+        self.ui.label_6.setText("Ich wurde gestoppt  ... ")
+        self.stop_speaker()
+        self.stop_audio = True
 
-        self.ui.label_6.setText("Ich würde gestoppt  ... ")
-        self.stopped = True
-        self.speaking_allowed = False
         self.speaker_worker = None
-        self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: gray;')
-        self.ui.pushToTalk.setEnabled(False)
         
         with self.plot_queue.mutex:
             self.plot_queue.queue.clear()
@@ -552,10 +553,9 @@ class MainUI(QtWidgets.QMainWindow):
         self.plot_queue = queue.Queue(maxsize=self.CHUNK)
         self.audio_queue = queue.Queue()
         self.plotdata =  np.zeros((self.length,len(self.channels)))
-        #Change BOT Status
-        self.displayStatus("Ich schlafe  ... ")
-        self.ui.chatWindow.text.setText("")
-        self.ui.pushToTalk.setEnabled(False)
+
+        self.startPushToTalk(update_status=False)
+
         
     def updateChat(self, data):
         self.ui.chatWindow.text.append(data)
@@ -588,7 +588,8 @@ class MainUI(QtWidgets.QMainWindow):
         wf = wave.open("welcome_message.wav")
         data = wf.readframes(-1)
         self.audio_queue.put_nowait({'data': data, 'format': '2**16'})
-        
+        self.stop_audio = False
+
         if self.speaker_worker is None:
             self.stopped = False
             self.speaking_allowed = True
@@ -602,8 +603,34 @@ class MainUI(QtWidgets.QMainWindow):
             self.threadpool.start(self.speaker_worker)
             self.init = True
         
-        self.ui.chatWindow.text.append(f"{self.params['app_name']}  >>>  "+ self.params["welcome_message"])
+        self.ui.chatWindow.text.append("ALVI  >>>  "+ self.params["welcome_message"])
             
+        self.startSpeakerWorker()
+
+    def restart(self):
+        # print("Initialiazing is finished.\n")
+        if self.client_worker is None:
+            self.client_worker = ClientWorker(self.client)
+            self.client.data_changed.connect(self.updateAudioQueue)
+            self.client.chatReceived.connect(self.updateChat)
+            self.client.imageReceived.connect(self.updateImage)
+            self.client.end_receive.connect(self.startSpeakerWorker)
+            # self.client.recorded_times.connect(self.saveLogs)
+            self.client_pool.start(self.client_worker)
+
+        if self.speaker_worker is None:
+            self.stopped = False
+            self.speaking_allowed = True
+            self.plotting = True
+            self.speaker_worker = AudioOutputWorker(function=self.getAudio, audio_queue=self.audio_queue)
+            if self.params["type"] == "no_click":
+                self.speaker_worker.signals.waiting.connect(self.startAPIWorker)
+            else:
+                self.speaker_worker.signals.waiting.connect(self.startPushToTalk)
+            self.speaker_worker.signals.status.connect(self.updateStatus)
+            self.threadpool.start(self.speaker_worker)
+            self.init = True
+
         self.startSpeakerWorker()
         
     def requestWMGenerating(self, welcome_message):
@@ -612,9 +639,9 @@ class MainUI(QtWidgets.QMainWindow):
         response = requests.get(url, json=json.dumps(welcome_message, ensure_ascii=False))
         self.params["old_welcome_message"] = welcome_message
         self.params["window_size"] = None
-        # with open(main_path+'/params.json', "w") as params_file:
-        #     json.dump(self.params, params_file)
-        #     params_file.close()
+        with open(main_path+'/params.json', "w") as params_file:
+            json.dump(self.params, params_file)
+            params_file.close()
     
     def displayStatus(self, text):
         """Display a text on GUI.
@@ -725,6 +752,12 @@ class MainUI(QtWidgets.QMainWindow):
                 # print("Start audio\n")
                 plotting = True
                 while plotting:
+                    if self.stop_audio:
+                        if stream.is_active():
+                            stream.stop_stream()
+                        stream.close()
+                        break
+
                     if len(data) > OCHUNK:
                         out = data[:OCHUNK]
                         data = data[OCHUNK:]
@@ -755,6 +788,12 @@ class MainUI(QtWidgets.QMainWindow):
                 out = wf.readframes(CHUNK)
                 while out:
                     try:
+                        if self.stop_audio:
+                            if stream.is_active():
+                                stream.stop_stream()
+                            stream.close()
+                            break
+
                         audio_as_np_int16 = np.frombuffer(out, dtype=np.int16)
                         audio_as_np_float32 = audio_as_np_int16.astype(np.float32)
                         audio_normalised = audio_as_np_float32 / max_int16
@@ -764,6 +803,8 @@ class MainUI(QtWidgets.QMainWindow):
                     except:
                         print("Broken\n")
                         break
+
+            self.updateStatus("Ich bin verfügbar ...")
                     
     def updateAudioQueue(self, data):
         """Add a new entry to audio queue.
@@ -780,16 +821,13 @@ class MainUI(QtWidgets.QMainWindow):
         Returns:
             numpy.ndarray: plotting data.
         """
-        if self.mic:
-            color = (0,1,0.29)
-        else:
-            color='red'
         if not self.plot_queue.empty():
             audio_normalised = self.plot_queue.get_nowait()
-            return audio_normalised, color
+            return audio_normalised
         else:
-            self.speaker_worker.speaking=False
-            return np.zeros((self.CHUNK,len(self.channels))), color
+            if self.speaker_worker is not None:
+                self.speaker_worker.speaking = False
+            return np.zeros((self.CHUNK,len(self.channels)))
     
     def startSpeakerWorker(self):
         """Change both idle and waiting states of AudiooutputWorker.
@@ -815,8 +853,8 @@ class MainUI(QtWidgets.QMainWindow):
         try:
             if  self.plotting is True:
                 try: 
-                    self.data, color = self.generatePlotData()
-                except:
+                    self.data = self.generatePlotData()
+                except Exception as e:
                     pass
                 shift = len(self.data)
                 self.plotdata = np.roll(self.plotdata, -shift,axis = 0)
@@ -845,7 +883,7 @@ class MainUI(QtWidgets.QMainWindow):
             pass
 
     def closeEvent(self, event):
-        self.reset()
+        self.stop_answer()
         self.record_allowed = False
         self.plotting = False
         self.stopped = False
@@ -853,10 +891,14 @@ class MainUI(QtWidgets.QMainWindow):
         url = url = "http://localhost:5000/close"
         response = requests.get(url, data={})
         
-        self.speaker_worker.stop_running()
+        self.stop_speaker()
         # Ask for confirmation before closing
         # confirmation = QtWidgets.QMessageBox.question(self, "Confirmation", "Are you sure you want to close the application?", QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)    
-        
+
+    def stop_speaker(self):
+        if self.speaker_worker is not None:
+            self.speaker_worker.stop_running()
+
 def main():
     default_json_path = main_path + '/params.json'
     parser = argparse.ArgumentParser(description="Process a params file.")
