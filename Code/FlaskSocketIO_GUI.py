@@ -584,10 +584,14 @@ class MainUI(QtWidgets.QMainWindow):
                         
         self.requestWMGenerating(self.params["welcome_message"])
         self.params["window_size"] = QtWidgets.QDesktopWidget().screenGeometry(-1)
-            
-        wf = wave.open("welcome_message.wav")
-        data = wf.readframes(-1)
-        self.audio_queue.put_nowait({'data': data, 'format': '2**16'})
+
+        if self.params["welcome_message"]:
+            wf = wave.open("welcome_message.wav")
+            data = wf.readframes(-1)
+            self.audio_queue.put_nowait({"data": data, "format": "2**16"})
+        else:
+            self.displayStatus("Ich bin verfügbar  ...")
+
         self.stop_audio = False
 
         if self.speaker_worker is None:
@@ -832,12 +836,14 @@ class MainUI(QtWidgets.QMainWindow):
     def startSpeakerWorker(self):
         """Change both idle and waiting states of AudiooutputWorker.
         """
-        if self.plotting and not self.stopped:
-            self.speaker_worker.dont_wait()
-            self.speaker_worker.wake()
-
-        else:
-            print("The model couldn't generate a speech from the text response\n")
+        try:
+            if self.plotting:
+                if self.speaker_worker is None:
+                    self.restart()
+                self.speaker_worker.dont_wait()
+                self.speaker_worker.wake()
+        except Exception as e:
+            print(f"The model couldn't generate a speech from the text response\n{e}")
     
     def updatePlotQueue(self, plot_data):
         """Add new entry to plot_queue.

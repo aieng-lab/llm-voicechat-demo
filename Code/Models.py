@@ -880,12 +880,14 @@ class ThorstenVits(TTSStrategy):
         """        
         # print("Generating started \n")        
         # speed=2.0, emotion="Sad"
-        try:
-            returned_text = self.model.tts_to_file(text=text, speaker_wav=self.voice_preset, file_path=filepath)
-            return returned_text
-        except Exception as e:
-            print(e)
-            return ""
+
+        if text:
+            try:
+                returned_text = self.model.tts_to_file(text=text, speaker_wav=self.voice_preset, file_path=filepath)
+                return returned_text
+            except Exception as e:
+                print(e)
+        return ""
         
         
 class XTTS_V2(TTSStrategy):

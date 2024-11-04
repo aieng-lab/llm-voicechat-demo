@@ -519,12 +519,12 @@ class MainUI(QtWidgets.QMainWindow):
     
     def toggle(self):
         if not self.api_worker.activated:
-            self.ui.pushToTalk.setText("Klick nochmal zu stoppen")
+            self.ui.pushToTalk.setText("Klick nochmal, um zu stoppen")
             self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: white;')
             self.startAPIWorker()
         else:
             self.stopPushToTalk()
-            self.ui.pushToTalk.setText("Click zum Anfragen")
+            self.ui.pushToTalk.setText("Klick zum Anfragen")
             self.ui.pushToTalk.setStyleSheet(f'background-color: #555555; font-size: {self.ui.button_text_size}px; color: gray;')
     
     def showChatWindow(self):

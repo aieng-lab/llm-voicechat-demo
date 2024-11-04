@@ -109,13 +109,14 @@ def receive():
 def generateWM():
     """Receives the text of the welcome message and send it to TTS process.
     Returns:
-        (dict): Resonse message containing the emitting time.
+        (dict): Response message containing the emitting time.
     """
     url="http://127.0.0.1:8080/request_welcome_message"
     received_time = time.time()
     print("\nRequest is recieved\n")
     query = request.json
-    response = requests.get(url, json=json.dumps(query, ensure_ascii=False))
+    query_json = json.dumps(query, ensure_ascii=False)
+    response = requests.get(url, data=query_json, headers={"Content-Type": "application/json"})
     return {"response": received_time}
 
 if __name__ == '__main__':

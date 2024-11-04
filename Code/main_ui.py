@@ -201,9 +201,9 @@ class Ui_MainWindow(object):
         MainWindow.setWindowTitle(_translate("MainWindow", "VITA - Das freundliche, Passauer KI Model"))
         self.label_6.setText(_translate("MainWindow", "Ich schlafe  ..."))
         self.startButton.setText(_translate("MainWindow", "Starte Gespräch"))
-        self.resetButton.setText(_translate("MainWindow", "Beende Gespräch"))
-        self.chatButton.setText(_translate("MainWindow", "Zeig Gespräch an"))
-        self.pushToTalk.setText(_translate("MainWindow", "Click zum Anfragen"))
+        self.resetButton.setText(_translate("MainWindow", "Beende Antwort"))
+        self.chatButton.setText(_translate("MainWindow", "Zeige Gespräch an"))
+        self.pushToTalk.setText(_translate("MainWindow", "klick zum Anfragen"))
 
 
 if __name__ == "__main__":
