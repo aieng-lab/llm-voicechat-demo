@@ -81,10 +81,10 @@ def generateImage(query):
 def receive():
     """Receives the generation query from tts api, creates a new thread to process it.
     Returns:
-        (dict): Resonse message containing the emitting time.
+        (dict): Response message containing the emitting time.
     """
     received_time = time.time()
-    print("\nRequest is recieved\n")
+    print("\nRequest is received\n")
     query = request.json
     t = threading.Thread(target=generateImage, daemon=True, args=[query])
     t.start()

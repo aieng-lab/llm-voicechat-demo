@@ -164,13 +164,12 @@ def receive_image():
 def generateWM():
     """Receives the text of the welcome message, generates an audio of it and save the audio in welcome_message.wav.
     Returns:
-        (dict): Resonse message containing the emitting time.
+        (dict): Response message containing the emitting time.
     """
     global gtts_model, etts_model
     received_time = time.time()
-    print("\nRequest is recieved\n")
+    print("\nRequest is received\n")
     query = request.json
-    # query_queue.put_nowait(query)
     if params["conversation_language"]=="en":
         etts_model.run_to_file(query, language="en", filepath="welcome_message.wav")
     else:

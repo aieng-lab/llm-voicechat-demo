@@ -200,9 +200,9 @@ class Ui_MainWindow(object):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "VITA - Das freundliche, Passauer KI Model"))
         self.label_6.setText(_translate("MainWindow", "Ich schlafe  ..."))
-        self.startButton.setText(_translate("MainWindow", "Starte Gespräch"))
-        self.resetButton.setText(_translate("MainWindow", "Beende Gespräch"))
-        self.chatButton.setText(_translate("MainWindow", "Zeig Gespräch an"))
+        self.startButton.setText(_translate("MainWindow", "Starte neues Gespräch"))
+        self.resetButton.setText(_translate("MainWindow", "Beende Antwort"))
+        self.chatButton.setText(_translate("MainWindow", "Zeige Gespräch an"))
         self.pushToTalk.setText(_translate("MainWindow", "Click zum Anfragen"))
 
 

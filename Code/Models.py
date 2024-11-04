@@ -245,7 +245,18 @@ class WhisperLargeV2(WhisperModel):
     Functions:
         run: record a speech using the microphone then convert and return it as text.
     ----------
-    """    
+    """
+
+    "Phrases or text snippets that are commonly returned by the model when it is applied for silent audio."
+    SILENCE_PHRASES = [
+        "Untertitel von Stephanie Geiges",
+        "Untertitel im Auftrag des ZDF für funk, 2017",
+        "Untertitelung des ZDF für funk, 2017",
+        "Untertitelung im Auftrag des ZDF, 2021",
+        " Danke für's Zuschauen!",
+        "Bis zum nächsten Mal.",
+    ]
+
     def __init__(self, device=None):
         """
         ----------
@@ -298,16 +309,20 @@ class WhisperLargeV2(WhisperModel):
         # return self.p(audio, generate_kwargs={"language":"german"})["text"]
         try:
             if language=="multi":
-                return self.p(audio, max_new_tokens=500, generate_kwargs={"task": "transcribe"})["text"]
+                text = self.p(audio, max_new_tokens=500, generate_kwargs={"task": "transcribe"})["text"]
             elif language == "de":
-                return self.p(audio, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
+                text = self.p(audio, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
             else:
-                return self.p(audio, max_new_tokens=500, generate_kwargs={"language": "english"})["text"]
-        except:
-            if language == "de":
-                return "Es tut mir Leid, Es gab ein Problem mit dem aufgenommenen Audio. Kannst du deine Anfrage nochmal stellen?"
-            else:
-                return "I'm sorry, there was a problem with the recorded audio. Can you make your request again?"
+                text = self.p(audio, max_new_tokens=500, generate_kwargs={"language": "english"})["text"]
+
+            if not text.strip() in self.SILENCE_PHRASES:
+                return text, True
+        except Exception:
+            pass
+        if language == "de":
+            return "Es tut mir Leid, Es gab ein Problem mit dem aufgenommenen Audio. Kannst du deine Anfrage nochmal stellen?", False
+        else:
+            return "I'm sorry, there was a problem with the recorded audio. Can you make your request again?", False
 
 
     
@@ -730,8 +745,7 @@ class OpenAIAPI(TTTStrategy):
         self.client = OpenAI(api_key=self.params["openai_api_key"], base_url=self.params["openai_base_url"])
         self.model_name = self.params["openai_model"]
         self.conv = [
-            # {"role": "system", "content": self.params["text_generation_system_prompt"]},
-            {"role": "system", "content": "Du bist ein hilfreicher Assistant."},
+            {"role": "system", "content": self.params["text_generation_system_prompt"]},
             {"role": "assistant", "content": self.params["welcome_message"]}
         ]
 

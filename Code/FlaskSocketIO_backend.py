@@ -33,7 +33,7 @@ def get_instance(name, args=None):
     if args is not None:
         instance = Klass(args)
     else:
-        instance =Klass()
+        instance = Klass()
     return instance
 
 # with open(main_path+'/params.json') as params_file:
@@ -80,8 +80,6 @@ def load_models(params):
     return stt_model, ttt_model, tti_model, gtts_model, etts_model, default_language
 
 
-
-
 @sio.on("connect")
 def connect():
     """Triggered when a client connect.
@@ -126,12 +124,16 @@ def generateAnswer(voice_request):
     start_time = time.time()
     current_time = start_time
     # print("########### generating ###########")
-    # transcribtion = stt_model.run(voice_request)
-    transcribtion = stt_model.run(voice_request, language=params["conversation_language"])
+    # transcription = stt_model.run(voice_request)
+    transcription, transcription_success = stt_model.run(voice_request, language=params["conversation_language"])
     sio.emit("chat", "========================")
-    sio.emit("chat", "USER  >>>  "+transcribtion)
-    transcribtion_time = time.time() - current_time
-    print(transcribtion)
+    if transcription_success:
+        sio.emit("chat", "USER  >>>  " + transcription)
+    else:
+        sio.emit("chat", "USER  >>>  [...]")
+
+    transcription_time = time.time() - current_time
+    print(transcription)
     # print(voice_query)
     entry = ""
     response = []
@@ -140,30 +142,43 @@ def generateAnswer(voice_request):
     current_time = time.time()
     # image_generation_keywords_nouns = set(params["image_generation_keywords_nouns"])
     # image_generation_keywords_verbs = set(params["image_generation_keywords_verbs"])
-    # prompt_words = set(transcribtion.split())
+    # prompt_words = set(transcription.split())
 
     
     # if image_generation_keywords_nouns & prompt_words and image_generation_keywords_verbs & prompt_words:
     plot_request = False
     for noun in params["image_generation_keywords_nouns"]:
-        if noun in transcribtion:
+        if noun in transcription:
             for verb in params["image_generation_keywords_verbs"]:
-                if verb in transcribtion:
+                if verb in transcription:
                     plot_request = True
                     break
             if plot_request:
                 break
-    if plot_request:
-        print("Plotting Request")
-        image_np = np.array(tti_model.run(transcribtion.strip()+ " " + params["image_generation_system_prompt"]))
-        image_bytes = image_np.tobytes()
-        
+
+    def determine_language(text):
         if params["conversation_language"] == "multi":
-            lang = detect(transcribtion) 
+            lang = detect(text)
             if lang not in ["de", "en"]:
                 lang = default_language
         else:
             lang = params["conversation_language"]
+        return lang
+    def generate_voice_answer(text):
+        lang = determine_language(text)
+
+        if lang == "de":
+            voice_answer = gtts_model.run(text)
+        else:
+            voice_answer = etts_model.run(text, language='en')
+        return voice_answer
+
+    if plot_request:
+        print("Plotting Request")
+        image_np = np.array(tti_model.run(transcription.strip()+ " " + params["image_generation_system_prompt"]))
+        image_bytes = image_np.tobytes()
+
+        lang = determine_language(transcription)
         
         if lang == "de":
             # print("#####\n",lang,"\n#####\n")
@@ -179,7 +194,12 @@ def generateAnswer(voice_request):
         data = {"voice_answer": b_answer}
         sio.emit("voice reply", data)
     else:
-        for out in ttt_model.run(transcribtion.strip()):
+        if transcription_success:
+            generator = ttt_model.run(transcription.strip())
+        else:
+            generator = [transcription, "END"]
+
+        for out in generator:
             ttt_times.append(time.time()-current_time)
             if len(out)<1 or out.isspace():
                 continue
@@ -196,21 +216,9 @@ def generateAnswer(voice_request):
 
                 sio.emit("chat", data= f"{params['app_name']}  >>>  "+entry)
                 # voice_answer = tts_model.run(entry)
-                
-                if params["conversation_language"] == "multi":
-                    lang = detect(entry)
-                    if lang not in ["de", "en"]:
-                        lang = default_language
-                else:
-                    lang = params["conversation_language"]
-                if lang == "de":
-                    print("#####\n",lang,"\n#####\n")
-                    voice_answer = gtts_model.run(entry)
-                else:
-                    print("#####\n",lang,"\n#####\n")
-                    # voice_answer = etts_model.run(entry)
-                    voice_answer = etts_model.run(entry, language='en')
-                    
+
+                voice_answer = generate_voice_answer(entry)
+
                 tts_times.append(time.time()-current_time)
                 if first_response:
                     logs["first_response"] = sum(ttt_times) + sum(tts_times)
@@ -226,20 +234,8 @@ def generateAnswer(voice_request):
                     print("\n##############\n")
                     current_time = time.time()
                     sio.emit("chat", data= f"{params['app_name']} >>> "+entry)
-                    # voice_answer = tts_model.run(entry)
-                    if params["conversation_language"] == "multi":
-                        lang = detect(entry)
-                        if lang not in ["de", "en"]:
-                            lang = default_language
-                    else:
-                        lang = params["conversation_language"]
-                        
-                    if lang == "de":
-                        # print("#####\n",lang,"\n#####\n")
-                        voice_answer = gtts_model.run(entry)
-                    else:
-                        # print("#####\n",lang,"\n#####\n")
-                        voice_answer = etts_model.run(entry, language='en')
+
+                    voice_answer = generate_voice_answer(entry)
                     tts_times.append(time.time()-current_time)
                     
                     if first_response:
@@ -247,7 +243,6 @@ def generateAnswer(voice_request):
                         first_response = False
                         
                     b_answer = voice_answer.tobytes()
-                    data = {"voice_answer": b_answer}
                     response.append(entry)
                     entry = out + " "
                     data = {"voice_answer": b_answer}
@@ -256,21 +251,21 @@ def generateAnswer(voice_request):
                     entry += out + " "
             current_time = time.time()    
         
-    logs["stt_time"] = transcribtion_time
+    logs["stt_time"] = transcription_time
     logs["ttt_times"] = ttt_times
     logs["tts_times"] = tts_times
     logs["total_time"] = time.time() - start_time
     logs_bytes = json.dumps(logs, indent=2).encode('utf-8')
-    sio.emit("request", data = logs_bytes)
+    sio.emit("request", data=logs_bytes)
 
 @app.route("/request", methods=["POST", "GET"])
 def receive():
     """Receives the voice request from client, creates a new thread to process it.
     Returns:
-        (dict): Resonse message containing the emitting time.
+        (dict): Response message containing the emitting time.
     """
     received_time = time.time()
-    print("\nRequest is recieved\n")
+    print("\nRequest is received\n")
     bytes_data = request.get_data()
     voice_query = bytes_data
     t = threading.Thread(target=generateAnswer, daemon=True, args=[voice_query])
@@ -283,16 +278,19 @@ def receive():
 def generateWM():
     """Receives the text of the welcome message, generates an audio of it and save the audio in welcome_message.wav.
     Returns:
-        (dict): Resonse message containing the emitting time.
+        (dict): Response message containing the emitting time.
     """
     global etts_model, gtts_model
     received_time = time.time()
     print("\nRequest is recieved\n")
-    query = request.json
+    query = request.get_json()
+    print(query)
+
+    output_file = "welcome_message.wav"
     if params["conversation_language"]=="en":
-        etts_model.run_to_file(query, language="en", filepath="welcome_message.wav")
+        etts_model.run_to_file(query, language="en", filepath=output_file)
     else:
-        gtts_model.run_to_file(query, filepath="welcome_message.wav")
+        gtts_model.run_to_file(query, filepath=output_file)
     return {"response": received_time}
 
 if __name__ == '__main__':

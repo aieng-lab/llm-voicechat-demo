@@ -17,8 +17,8 @@ To start the program do the following:
     python FlaskSocketIO_GUI.py
     """
 
-5 - Make sure that the backend is fully loaded before clicking on "Starte Gespräch".
-    The backend is fully loaded when it ouputs:
+5 - Make sure that the backend is fully loaded before clicking on "Starte neues Gespräch".
+    The backend is fully loaded when it outputs:
     """
     * Serving Flask app 'FlaskSocketIO_backend'
     * Debug mode: off
@@ -45,8 +45,8 @@ Um das program zu starten, mach die Folgenden:
     python FlaskSocketIO_GUI.py
     """
 
-5 - Warte bis das Backend läuft, bevor du auf "Starte Gespräch" klickst.
-    Das Backend läuft, wenn der Terminal anzeigt:
+5 - Warte bis das Backend läuft, bevor du auf "Starte neues Gespräch" klickst.
+    Das Backend läuft, wenn das Terminal anzeigt:
     """
     * Serving Flask app 'FlaskSocketIO_backend'
     * Debug mode: off

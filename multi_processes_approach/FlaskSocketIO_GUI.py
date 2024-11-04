@@ -603,7 +603,7 @@ class MainUI(QtWidgets.QMainWindow):
             self.threadpool.start(self.speaker_worker)
             self.init = True
         
-        self.ui.chatWindow.text.append(f"{self.params['app_name']}  >>>  "+ self.params["welcome_message"])
+        self.ui.chatWindow.text.setText(f"{self.params['app_name']}  >>>  "+ self.params["welcome_message"])
             
         self.startSpeakerWorker()
         

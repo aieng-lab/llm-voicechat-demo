@@ -68,11 +68,11 @@ In the middle of the screen a text field will inform you about the current state
    - "Ich höre zu ...": The program is ready to record a voice query.
    - "Ich überlege was ich antworte ...": The query is being processed.
 
-Once everything is loaded, you can start the program by pressing on the "Starte Gespräch" button.
+Once everything is loaded, you can start the program by pressing on the "Starte neues Gespräch" button.
 
 The program will not record until "Ich höre zu ..." is shown, that's when you can query.
 
-"Beende Gespräch" button will reset all parameters and take the program back to "Ich shclafe ..." state.
+"Beende Antwort" button will stop the current answer, but keeps the current chat history including the stopped answer. Use the "Starte neues Gespräch" button to start a new conversation with a cleaned chat history.
 
 Everything must be closed from terminals.
 
@@ -92,11 +92,11 @@ The project is a Websocket server with RestAPI using python Flask-SocketIO with 
    - Holds Text-to-Text model.
    - Holds Text-to-Speech model.
    - Runs the server on the main thread.
-   - When a request is received, a new thread is created to preocess and send back response.
+   - When a request is received, a new thread is created to process and send back response.
 
 ## How it works:
 
-When "Starte Gespräch" is clicked, the frontend starts with playing a pre-recorded welcome message and connects to the backend through socketIO client.
+When "Starte neues Gespräch" is clicked, the frontend starts with playing a pre-recorded welcome message and connects to the backend through socketIO client.
 Then the microphone is initialized and records user's query.
 
 After an audio is recorded, it will be sent to the Flask-SocketIO server (backend) as GET request.
@@ -104,7 +104,7 @@ After an audio is recorded, it will be sent to the Flask-SocketIO server (backen
 The backend receives the request on a Flask route, creates a new thread to process it as follows:
 
 1. Transcribes the audio data using a speech-to-text model (WhisperLargeV2)
-2. Streams generated text on the transcribtion using a large language model (FastChat/Vicuna).
+2. Streams generated text on the transcription using a large language model (FastChat/Vicuna).
 3. Generates speech for each chunk of generated text using text-to-speech model (thorsten/vits from XTT2/Coqui)
 4. Each generated speech would be sent back to frontend using socketIO as audio bytes.
 

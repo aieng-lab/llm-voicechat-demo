@@ -1,5 +1,6 @@
 {"CHUNK": 1024, 
 "samplerate": 24000, 
+"app_name": "Alvi",
 "linewidth": 8, 
 "color": "#04d9ff", 
 "stt_model": "WhisperLargeV2", 
