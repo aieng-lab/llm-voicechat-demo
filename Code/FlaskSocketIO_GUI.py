@@ -466,7 +466,6 @@ class MainUI(QtWidgets.QMainWindow):
         
         self.status_worker = None
         self.r = sr.Recognizer()
-        self.audio_queue.put_nowait(self.plotdata)
         
         self.speaker_worker = AudioOutputWorker(function=self.getAudio, audio_queue=self.audio_queue)
         if self.params["type"] == "push_to_talk":
@@ -588,7 +587,7 @@ class MainUI(QtWidgets.QMainWindow):
             
         wf = wave.open("welcome_message.wav")
         data = wf.readframes(-1)
-        self.audio_queue.put_nowait(data)
+        self.audio_queue.put_nowait({'data': data, 'format': '2**16'})
         
         if self.speaker_worker is None:
             self.stopped = False
@@ -702,7 +701,9 @@ class MainUI(QtWidgets.QMainWindow):
             # print("Getting Audio\n")
             CHUNK = self.CHUNK
             rate = self.samplerate
-            data = self.audio_queue.get_nowait()
+            audio_data = self.audio_queue.get_nowait()
+            data = audio_data['data']
+            format = audio_data['format']
             
             # Stream the audio using pyaudio
             p = pyaudio.PyAudio()
@@ -719,7 +720,7 @@ class MainUI(QtWidgets.QMainWindow):
                             rate=rate,
                             output=True,
                             frames_per_buffer=CHUNK)
-            if self.init:                                
+            if format == '2**16':
                 max_int16 = 2**16        
                 # print("Start audio\n")
                 plotting = True
@@ -770,7 +771,7 @@ class MainUI(QtWidgets.QMainWindow):
         Args:
             data (bytes): audio data
         """
-        self.audio_queue.put_nowait(data)
+        self.audio_queue.put_nowait({'data': data, 'format': '2**15'})
     
     def generatePlotData(self):
         """Gets plotting data from plot_queue.
