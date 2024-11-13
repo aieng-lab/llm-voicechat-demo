@@ -573,46 +573,37 @@ class MainUI(QtWidgets.QMainWindow):
         If the Reset is already clicked, re-initialize and start both client_worker and speaker_worker.
         """
         # print("Initialiazing is finished.\n")
-        if self.client_worker is None:
-            self.client_worker = ClientWorker(self.client)
-            self.client.data_changed.connect(self.updateAudioQueue)
-            self.client.chatReceived.connect(self.updateChat)
-            self.client.imageReceived.connect(self.updateImage)
-            self.client.end_receive.connect(self.startSpeakerWorker)
-            # self.client.recorded_times.connect(self.saveLogs)
-            self.client_pool.start(self.client_worker)
+        #if not self.audio_queue.empty():
+        #    self.stop_answer()
+        #    time.sleep(0.1)
+
+        self.check_for_client_worker()
                         
-        self.requestWMGenerating(self.params["welcome_message"])
-        self.params["window_size"] = QtWidgets.QDesktopWidget().screenGeometry(-1)
+
 
         if self.params["welcome_message"]:
+            self.requestWMGenerating(self.params["welcome_message"])
             wf = wave.open("welcome_message.wav")
             data = wf.readframes(-1)
             self.audio_queue.put_nowait({"data": data, "format": "2**16"})
         else:
             self.displayStatus("Ich bin verfügbar  ...")
 
+        self.params["window_size"] = QtWidgets.QDesktopWidget().screenGeometry(-1)
         self.stop_audio = False
 
-        if self.speaker_worker is None:
-            self.stopped = False
-            self.speaking_allowed = True
-            self.plotting = True
-            self.speaker_worker = AudioOutputWorker(function=self.getAudio, audio_queue=self.audio_queue)
-            if self.params["type"] == "no_click":
-                self.speaker_worker.signals.waiting.connect(self.startAPIWorker)                
-            else:
-                self.speaker_worker.signals.waiting.connect(self.startPushToTalk)
-            self.speaker_worker.signals.status.connect(self.updateStatus)
-            self.threadpool.start(self.speaker_worker)
-            self.init = True
+        self.check_for_speaker_worker()
         
-        self.ui.chatWindow.text.append("ALVI  >>>  "+ self.params["welcome_message"])
+        self.ui.chatWindow.text.setText("ALVI  >>>  " + self.params["welcome_message"])
             
         self.startSpeakerWorker()
 
     def restart(self):
-        # print("Initialiazing is finished.\n")
+        self.check_for_client_worker()
+        self.check_for_speaker_worker()
+        self.startSpeakerWorker()
+
+    def check_for_client_worker(self):
         if self.client_worker is None:
             self.client_worker = ClientWorker(self.client)
             self.client.data_changed.connect(self.updateAudioQueue)
@@ -622,6 +613,7 @@ class MainUI(QtWidgets.QMainWindow):
             # self.client.recorded_times.connect(self.saveLogs)
             self.client_pool.start(self.client_worker)
 
+    def check_for_speaker_worker(self):
         if self.speaker_worker is None:
             self.stopped = False
             self.speaking_allowed = True
@@ -635,8 +627,6 @@ class MainUI(QtWidgets.QMainWindow):
             self.threadpool.start(self.speaker_worker)
             self.init = True
 
-        self.startSpeakerWorker()
-        
     def requestWMGenerating(self, welcome_message):
         url = "http://localhost:5000/request_welcome_message"
         # query = {"content":welcome_message}
@@ -661,7 +651,6 @@ class MainUI(QtWidgets.QMainWindow):
         else:
             self.ui.label_6.setStyleSheet(f''' font-size: {self.status_size}px; color: Red;''')
 
-        
     
     def updateStatus(self, text):
         """Change the displayed message.
