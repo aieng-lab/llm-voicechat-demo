@@ -632,6 +632,8 @@ class MainUI(QtWidgets.QMainWindow):
         #    self.stop_answer()
         #    time.sleep(0.1)
 
+        self.ui.chatWindow.reset()
+
         self.check_for_client_worker()
 
         if self.params["welcome_message"]:

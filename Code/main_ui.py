@@ -81,6 +81,12 @@ class ChatWindow(QtWidgets.QWidget):
         self.chat_layout.addSpacerItem(
             QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding))
 
+    def reset(self):
+        for i in reversed(range(self.chat_layout.count())):
+            widget = self.chat_layout.itemAt(i).widget()
+            if widget is not None:
+                widget.deleteLater()
+
     def add_user_message(self, message):
         self.add_message(message, sender='You')
 
