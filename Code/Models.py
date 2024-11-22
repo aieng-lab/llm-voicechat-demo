@@ -247,13 +247,16 @@ class WhisperLargeV2(WhisperModel):
     ----------
     """
 
-    "Phrases or text snippets that are commonly returned by the model when it is applied for silent audio."
+    """
+    Phrases or text snippets that are commonly returned by the model when it is applied for silent audio.
+    """
     SILENCE_PHRASES = [
         "Untertitel von Stephanie Geiges",
         "Untertitel im Auftrag des ZDF für funk, 2017",
+        "Untertitelung im Auftrag des ZDF für funk, 2017",
         "Untertitelung des ZDF für funk, 2017",
         "Untertitelung im Auftrag des ZDF, 2021",
-        " Danke für's Zuschauen!",
+        "Danke für's Zuschauen!",
         "Bis zum nächsten Mal.",
     ]
 

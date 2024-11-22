@@ -14,6 +14,23 @@ main_path = os.path.dirname(os.path.realpath(__file__))
 logs_path = main_path + "/logs/"
 DetectorFactory.seed = 0
 
+ABBREVIATION_MAP = {
+    "z.B.": "zum Beispiel",
+    "z. B.": "zum Beispiel",
+    "u.a.": "unter anderem",
+    "u. a.": "unter anderem",
+    "etc.": "et cetera",
+    "bzw.": "beziehungsweise",
+    "i.d.R.": "in der Regel",
+    "v.a.": "vor allem",
+    "d.h.": "das heißt",
+    "d. h.": "das heißt",
+    "vgl.": "vergleiche",
+    "ca. ": "circa ",  # extra white space to avoid end of sentence
+    "OK,": "Okay,",
+    "ok,": "okay,",
+}
+
 
 if not os.path.exists(logs_path):
     os.makedirs(logs_path)
@@ -126,11 +143,11 @@ def generateAnswer(voice_request):
     # print("########### generating ###########")
     # transcription = stt_model.run(voice_request)
     transcription, transcription_success = stt_model.run(voice_request, language=params["conversation_language"])
-    sio.emit("chat", "========================")
+
     if transcription_success:
-        sio.emit("chat", "USER  >>>  " + transcription)
+        sio.emit("chat", {"message": transcription.strip(), "sender": "You"})
     else:
-        sio.emit("chat", "USER  >>>  [...]")
+        sio.emit("chat", {"message": "[...]", "sender": "You"})
 
     transcription_time = time.time() - current_time
     print(transcription)
@@ -173,6 +190,11 @@ def generateAnswer(voice_request):
             voice_answer = etts_model.run(text, language='en')
         return voice_answer
 
+    def post_process_text(text):
+        for abbr, full in ABBREVIATION_MAP.items():
+            text = text.replace(abbr, full)
+        return text
+
     if plot_request:
         print("Plotting Request")
         image_np = np.array(tti_model.run(transcription.strip()+ " " + params["image_generation_system_prompt"]))
@@ -182,14 +204,14 @@ def generateAnswer(voice_request):
         
         if lang == "de":
             # print("#####\n",lang,"\n#####\n")
-            sio.emit("chat", data= f"{params['app_name']}  >>>  Hast du weitere Anfragen?")
+            sio.emit("chat", data={"message": "Hast du weitere Anfragen?", "sender": "AI"})
             voice_answer = gtts_model.run("Hast du weitere Anfragen?")
         else:
             # print("#####\n",lang,"\n#####\n")
-            sio.emit("chat", data= "VITA  >>>  Do you have another request?")
+            sio.emit("chat", data={"message": "Do you have another request?", "sender": "AI"})
             # voice_answer = etts_model.run("Do you have another request?")
             voice_answer = etts_model.run(text="Do you have another request?", language='en')
-        sio.emit("image", data= {"image_bytes": image_bytes})
+        sio.emit("image", data={"image_bytes": image_bytes})
         b_answer = voice_answer.tobytes()
         data = {"voice_answer": b_answer}
         sio.emit("voice reply", data)
@@ -206,15 +228,16 @@ def generateAnswer(voice_request):
             if out == "END":
                 if len(entry)<1:
                     entry = params["not_able_to_respond_message"]
-                    sio.emit("chat", data= f"{params['app_name']}  >>>  "+entry)
+                    sio.emit("chat", data={"message": entry, "sender": "AI"})
                     print(entry)
                     continue
+                entry = post_process_text(entry)
                 print("\n##############\n")
                 print(entry)
                 print("\n##############\n")
                 current_time = time.time()
 
-                sio.emit("chat", data= f"{params['app_name']}  >>>  "+entry)
+                sio.emit("chat", data={"message": entry, "sender": "AI"})
                 # voice_answer = tts_model.run(entry)
 
                 voice_answer = generate_voice_answer(entry)
@@ -229,11 +252,13 @@ def generateAnswer(voice_request):
                 sio.emit("voice reply", data)
             else:
                 if (len(entry) + len(out) + 1) >= entry_length:
+                    entry = post_process_text(entry)
+
                     print("\n##############\n")
                     print(entry)
                     print("\n##############\n")
                     current_time = time.time()
-                    sio.emit("chat", data= f"{params['app_name']} >>> "+entry)
+                    sio.emit("chat", data={'message': entry, 'sender': 'AI'})
 
                     voice_answer = generate_voice_answer(entry)
                     tts_times.append(time.time()-current_time)

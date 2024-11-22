@@ -45,7 +45,8 @@ class ImageWindow(QtWidgets.QMainWindow):
         self.canvas.draw()
     
     def setData(self, data):
-        self.data = data        
+        self.data = data
+
 
 class ChatWindow(QtWidgets.QWidget):
     """
@@ -54,11 +55,86 @@ class ChatWindow(QtWidgets.QWidget):
     """
     def __init__(self):
         super().__init__()
-        layout = QtWidgets.QVBoxLayout()
-        self.text = QtWidgets.QTextBrowser(parent=self)
-        layout.addWidget(self.text)
-        self.setLayout(layout)
-        
+        self.setWindowTitle("Chat")
+
+        # Main layout
+        main_layout = QtWidgets.QVBoxLayout()
+
+        # Scroll area for chat messages
+        self.chat_area = QtWidgets.QScrollArea()
+        self.chat_area.setWidgetResizable(True)
+        self.chat_widget = QtWidgets.QWidget()
+        self.chat_layout = QtWidgets.QVBoxLayout(self.chat_widget)
+        self.chat_layout.setAlignment(QtCore.Qt.AlignTop)  # Keep messages top-aligned
+        self.chat_area.setWidget(self.chat_widget)
+
+        # Styling for chat area
+        self.chat_area.setStyleSheet("background-color: #f1f1f1; border: none;")
+
+        # Add widgets to the main layout
+        main_layout.addWidget(self.chat_area)
+
+        # Set the main layout for ChatWindow
+        self.setLayout(main_layout)
+
+        # Add a spacer at the bottom to keep messages top-aligned without stretching
+        self.chat_layout.addSpacerItem(
+            QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding))
+
+    def add_user_message(self, message):
+        self.add_message(message, sender='You')
+
+    def add_ai_message(self, message):
+        self.add_message(message, sender='AI')
+
+    def add_message(self, message, sender="You"):
+        if not message:
+            return
+
+        message = message.strip()
+
+        # Create a container widget for the message
+        message_container = QtWidgets.QWidget()
+        message_container_layout = QtWidgets.QHBoxLayout(message_container)
+        message_container_layout.setContentsMargins(10, 5, 10, 5)
+
+        # Create the message label
+        message_label = QtWidgets.QLabel(message)
+        message_label.setWordWrap(True)  # Allow text to wrap
+        message_label.setMaximumWidth(400)  # Set a maximum width for the message bubble
+        message_label.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
+
+        font_size = 20
+
+        # Style and align the message bubble based on sender
+        if sender == "You":
+            message_label.setStyleSheet(f"background-color: #DCF8C6; border-radius: 15px; padding: 8px; font-size: {font_size}px;")
+            message_container_layout.addStretch()  # Push the message to the right
+            message_container_layout.addWidget(message_label)
+        else:
+            message_label.setStyleSheet(f"background-color: #DDDDDD; border-radius: 15px; padding: 8px; font-size: {font_size}px;")
+            message_container_layout.addWidget(message_label)
+            message_container_layout.addStretch()  # Push the message to the left
+
+        # Add the message container to the main chat layout
+        self.chat_layout.addWidget(message_container)
+
+        # Ensure the chat layout is updated and the last message is fully visible
+        self.chat_area.update()  # Redraw the chat area to ensure height is updated
+
+        # Scroll to the latest message after layout is updated
+        QtCore.QTimer.singleShot(50, lambda: self.chat_area.verticalScrollBar().setValue(self.chat_area.verticalScrollBar().maximum()))
+        QtCore.QTimer.singleShot(200, lambda: self.chat_area.verticalScrollBar().setValue(self.chat_area.verticalScrollBar().maximum()))
+        QtCore.QTimer.singleShot(1000, lambda: self.chat_area.verticalScrollBar().setValue(self.chat_area.verticalScrollBar().maximum()))
+
+    def send_message(self):
+        message = self.input_field.text()
+        if message:
+            self.add_message(message, sender="You")
+            self.input_field.clear()
+
+
+
 class HoldButton(QtWidgets.QPushButton):
     def __init__(self, label, parent=None):
         super().__init__(label, parent)
@@ -196,14 +272,19 @@ class Ui_MainWindow(object):
         
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
+
+
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "VITA - Das freundliche, Passauer KI Model"))
+        if 'app_desc' in self.params:
+            MainWindow.setWindowTitle(_translate("MainWindow", f"{self.params['app_name'].upper()} - {self.params['app_desc']}"))
+        else:
+            MainWindow.setWindowTitle(_translate("MainWindow", f"{self.params['app_name'].upper()}"))
         self.label_6.setText(_translate("MainWindow", "Ich schlafe  ..."))
         self.startButton.setText(_translate("MainWindow", "Starte Gespräch"))
         self.resetButton.setText(_translate("MainWindow", "Beende Antwort"))
         self.chatButton.setText(_translate("MainWindow", "Zeige Gespräch an"))
-        self.pushToTalk.setText(_translate("MainWindow", "klick zum Anfragen"))
+        self.pushToTalk.setText(_translate("MainWindow", "Klick zum Anfragen"))
 
 
 if __name__ == "__main__":

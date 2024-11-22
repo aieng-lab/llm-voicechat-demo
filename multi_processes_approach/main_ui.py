@@ -198,12 +198,15 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "VITA - Das freundliche, Passauer KI Model"))
+        if 'app_desc' in self.params:
+            MainWindow.setWindowTitle(_translate("MainWindow", f"{self.params['app_name']} - {self.params['app_desc']}"))
+        else:
+            MainWindow.setWindowTitle(_translate("MainWindow", f"{self.params['app_name']}"))
         self.label_6.setText(_translate("MainWindow", "Ich schlafe  ..."))
         self.startButton.setText(_translate("MainWindow", "Starte neues Gespräch"))
         self.resetButton.setText(_translate("MainWindow", "Beende Antwort"))
         self.chatButton.setText(_translate("MainWindow", "Zeige Gespräch an"))
-        self.pushToTalk.setText(_translate("MainWindow", "Click zum Anfragen"))
+        self.pushToTalk.setText(_translate("MainWindow", "Klick zum Anfragen"))
 
 
 if __name__ == "__main__":

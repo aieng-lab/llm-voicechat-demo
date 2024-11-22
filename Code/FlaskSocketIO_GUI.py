@@ -293,7 +293,7 @@ class Client(QtCore.QObject):
     data_changed = QtCore.pyqtSignal(bytes, name="dataChanged")
     end_receive = QtCore.pyqtSignal()
     recorded_times = QtCore.pyqtSignal(bytes)
-    chatReceived = QtCore.pyqtSignal(str)
+    chatReceived = QtCore.pyqtSignal(dict)
     imageReceived = QtCore.pyqtSignal(bytes)
 
     def __init__(self, parent=None):
@@ -417,9 +417,24 @@ class MainUI(QtWidgets.QMainWindow):
         # self.ui = uic.loadUi(main_path+'/main.ui',self)
         self.ui = Ui_MainWindow(params = params)
         self.ui.setupUi(self, params["window_size"])
-        self.showMaximized()
+
+        def keyPressEvent(event):
+            key = event.key()
+            if key == QtCore.Qt.Key.Key_PageDown:
+                self.ui.pushToTalk.click()
+            elif key == QtCore.Qt.Key.Key_PageUp:
+                self.ui.resetButton.click()
+            elif key == 46:
+                self.ui.startButton.click()
+            #elif key in {QtCore.Qt.Key.Key_Escape, QtCore.Qt.Key.Key_Enter, QtCore.Qt.Key.Key_Return}:
+            #    self.ui.chatButton.click()
+            else:
+                print(f'Unsupported Key was pressed {key}')
+        self.keyPressEvent = keyPressEvent
+
+        #self.showMaximized()
         # self.showFullScreen()
-        
+        self.show()
         
         # QThreadPools are used to run QRunnable objects.
         self.threadpool = QtCore.QThreadPool()
@@ -533,8 +548,48 @@ class MainUI(QtWidgets.QMainWindow):
                 self.restart()
 
     def showChatWindow(self):
+        if self.params.get('chat_mode'):
+            self.showNormal()
+
+            # Get the list of available screens
+            screens = QtWidgets.QApplication.screens()
+
+            # Use the secondary screen if available; otherwise, use the primary screen
+            if len(screens) > 1:
+                screen = screens[1]  # Secondary screen
+            else:
+                screen = QtWidgets.QApplication.primaryScreen()  # Fallback to the primary screen
+
+            # Get the available geometry of the chosen screen
+            screen_geometry = screen.availableGeometry()
+
+            chat_width = self.params.get('chat_width_px', 600)
+            screen_height = screen_geometry.height()
+            chat_height = self.params.get('chat_height_px', screen_height)
+
+            # Resize and align the chat window
+            self.ui.chatWindow.resize(chat_width, chat_height)
+            self.ui.chatWindow.move(screen_geometry.x(),
+                                    screen_geometry.y() + screen_geometry.height() // 2 - chat_height // 2)
+
+            # Calculate the main window dimensions
+            main_window_width = screen_geometry.width() - chat_width
+            main_window_height = screen_geometry.height()
+
+            # Resize and align the main window to the right of the chat window
+            self.resize(main_window_width, main_window_height)
+            self.move(screen_geometry.x() + chat_width, screen_geometry.y())
+
+            # Force an update to apply changes
+            self.update()
+
         self.ui.chatWindow.show()
-        
+
+
+
+
+
+
         
     def stop_answer(self):
         """Stops the current answer, i.e., stops the audio speakers and the plotting.
@@ -558,7 +613,7 @@ class MainUI(QtWidgets.QMainWindow):
 
         
     def updateChat(self, data):
-        self.ui.chatWindow.text.append(data)
+        self.ui.chatWindow.add_message(**data)
         
     def updateImage(self, image):
         image_np = np.frombuffer(image, dtype=np.uint8).reshape((512,512,3))
@@ -572,14 +627,12 @@ class MainUI(QtWidgets.QMainWindow):
         Play a pre-generated welcome message.
         If the Reset is already clicked, re-initialize and start both client_worker and speaker_worker.
         """
-        # print("Initialiazing is finished.\n")
+        # print("Initializing is finished.\n")
         #if not self.audio_queue.empty():
         #    self.stop_answer()
         #    time.sleep(0.1)
 
         self.check_for_client_worker()
-                        
-
 
         if self.params["welcome_message"]:
             self.requestWMGenerating(self.params["welcome_message"])
@@ -593,9 +646,10 @@ class MainUI(QtWidgets.QMainWindow):
         self.stop_audio = False
 
         self.check_for_speaker_worker()
-        
-        self.ui.chatWindow.text.setText("ALVI  >>>  " + self.params["welcome_message"])
-            
+
+        if self.params.get("welcome_message"):
+            self.ui.chatWindow.add_ai_message(self.params["welcome_message"])
+
         self.startSpeakerWorker()
 
     def restart(self):
