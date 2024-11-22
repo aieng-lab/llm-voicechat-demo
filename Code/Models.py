@@ -1,3 +1,4 @@
+import librosa
 import torch
 import speech_recognition as sr
 from abc import ABC, abstractmethod
@@ -306,29 +307,52 @@ class WhisperLargeV2(WhisperModel):
     # def run(self, audio):
     #     # return self.p(audio, max_new_tokens=500, generate_kwargs={"language": None})["text"]
     #     return self.p(audio, max_new_tokens=500, generate_kwargs={"task": "transcribe"})["text"]
-    
-    def run(self, audio, language):
-        # return self.p(audio, max_new_tokens=500, generate_kwargs={"language":"german", "task":"transcribe"})["text"]
-        # return self.p(audio, generate_kwargs={"language":"german"})["text"]
-        try:
-            if language=="multi":
-                text = self.p(audio, max_new_tokens=500, generate_kwargs={"task": "transcribe"})["text"]
-            elif language == "de":
-                text = self.p(audio, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
-            else:
-                text = self.p(audio, max_new_tokens=500, generate_kwargs={"language": "english"})["text"]
 
-            if not text.strip() in self.SILENCE_PHRASES:
+    import numpy as np
+    import librosa
+
+    def run(self, audio_bytes, language, sample_rate=44100, num_channels=2):
+        """
+        Processes raw PCM audio bytes, normalizes them, and transcribes using Whisper.
+        """
+        try:
+            # Convert raw bytes to NumPy array
+            audio_array = np.frombuffer(audio_bytes, dtype=np.int16)
+
+            # Convert stereo to mono if needed
+            if num_channels > 1:
+                audio_array = audio_array.reshape(-1, num_channels)
+                audio_array = np.mean(audio_array, axis=1)  # Average channels for mono
+
+            # Normalize audio to [-1, 1]
+            audio_array = audio_array / np.max(np.abs(audio_array))
+
+            # Resample to 16kHz
+            if sample_rate != 16000:
+                audio_array = librosa.resample(audio_array.astype(np.float32), orig_sr=sample_rate, target_sr=16000)
+
+            # Transcription using pipeline
+            if language == "multi":
+                text = self.p(audio_array, max_new_tokens=500, generate_kwargs={"task": "transcribe"})["text"]
+            elif language == "de":
+                text = self.p(audio_array, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
+            else:
+                text = self.p(audio_array, max_new_tokens=500, generate_kwargs={"language": "english"})["text"]
+
+            # Filter out silence phrases
+            if text.strip() not in self.SILENCE_PHRASES:
                 return text, True
-        except Exception:
-            pass
+
+        except Exception as e:
+            print(f"Error during transcription: {e}")
+
+        # Handle fallback cases
         if language == "de":
             return "Es tut mir Leid, Es gab ein Problem mit dem aufgenommenen Audio. Kannst du deine Anfrage nochmal stellen?", False
         else:
             return "I'm sorry, there was a problem with the recorded audio. Can you make your request again?", False
 
 
-    
 class FastChatModel(TTTStrategy):
     """ A text to text strategy based on FastChat project using Vicuna model. Subclass of TTTStrategy
     ----------

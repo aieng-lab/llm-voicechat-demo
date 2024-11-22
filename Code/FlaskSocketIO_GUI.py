@@ -213,10 +213,13 @@ class APIWorker(QtCore.QThread):
         self.signals.result.emit(audio_bytes)
         self.activated = False
         self.signals.finished.emit()
-            
+
     def pushToTalk(self):
+        """
+        Records audio in real-time using PyAudio and returns raw PCM waveform data.
+        """
         print("pushToTalk")
-        self.chunk = 2048  # Record in chunks of 1024 samples
+        self.chunk = 2048  # Record in chunks of 2048 samples
         self.format = pyaudio.paInt16  # 16 bits per sample
         self.channels = 2  # Stereo
         self.rate = 44100  # Record at 44100 samples per second
@@ -224,32 +227,35 @@ class APIWorker(QtCore.QThread):
         self.stream = None
         self.frames = []
         self.recording = False
+
         try:
             self.recording = True
-            self.stream = self.p.open(format=self.format,
-                                      channels=self.channels,
-                                      rate=self.rate,
-                                      input=True,
-                                      frames_per_buffer=self.chunk)
-            # self.update_label.emit("Recording...")
+            self.stream = self.p.open(
+                format=self.format,
+                channels=self.channels,
+                rate=self.rate,
+                input=True,
+                frames_per_buffer=self.chunk
+            )
             self.stream.start_stream()
+
             while self.recording:
-                # print("recording")
                 data = self.stream.read(self.chunk, exception_on_overflow=False)
                 self.frames.append(data)
+
         except Exception as e:
             print(f"Error: {e}")
-            # self.update_label.emit(f"Error: {e}")
+
         finally:
             if self.stream:
                 print("stopped")
                 self.stream.stop_stream()
                 self.stream.close()
+
+            # Combine frames into a single byte string
             audio_bytes = b''.join(self.frames)
-            audio_data = sr.AudioData(audio_bytes, self.rate, 2)  # 2 is for 16-bit samples
-        return audio_data.get_flac_data()
-                
-                
+            return audio_bytes
+
     def stop(self):
         print("try to stopped")
         with QtCore.QMutexLocker(self.mutex):
