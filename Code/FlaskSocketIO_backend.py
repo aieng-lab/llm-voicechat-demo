@@ -7,6 +7,7 @@ from flask import Flask, request
 from flask_socketio import SocketIO
 import threading
 import logging
+import re
 from langdetect import detect, DetectorFactory
 
 
@@ -29,6 +30,10 @@ ABBREVIATION_MAP = {
     "ca. ": "circa ",  # extra white space to avoid end of sentence
     "OK,": "Okay,",
     "ok,": "okay,",
+    "*": "", # avoid markdown
+    "§": "Paragraph",
+    "§§": "Paragraphen",
+    "Art.": "Artikel",
 }
 
 
@@ -42,7 +47,7 @@ sio = SocketIO(app, async_mode = "threading")
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
-entry_length = 300
+entry_length = 400
 
 
 def get_instance(name, args=None):
@@ -65,36 +70,95 @@ def load_models(params):
         gtts_model (TTSStrategy): German Text-to-Speech model default = ThorstenVits.
         tti_model (TTIStrategy): Text-to-Image deffusion model, default = StableDiffusion
     """
+    params = apply_api_model_selection(params)
+
     # print("\nLoading Whisper ...\n")
     # stt_model = WhisperLargeV2()
-    stt_model = get_instance(params["stt_model"])
+    stt_model = get_instance(params["stt_model"]["active"])
     # print("\nLoading FastChat ...\n")
     # ttt_model = FastChatModel()
-    ttt_model = get_instance(params["ttt_model"], params)
+    ttt_model = get_instance(params["ttt_model"]["active"], params)
     
     # print("\nLoading StableDiffusion ...\n")
     # tts_model = StableDiffusion()
-    tti_model = get_instance(params["tti_model"])
+    tti_model = get_instance(params["tti_model"]["active"])
     
     
     # print("\nLoading XTTS_V2 ...\n")
     # tts_model = XTTS_V2()
     if params["conversation_language"]=="multi":
-        gtts_model = get_instance(params["gtts_model"])
-        etts_model = get_instance(params["etts_model"])
+        gtts_model = get_instance(params["gtts_model"]["active"])
+        etts_model = get_instance(params["etts_model"]["active"])
         default_language = params["default_language"]
         
     elif params["conversation_language"]=="de":
-        gtts_model = get_instance(params["gtts_model"])
+        gtts_model = get_instance(params["gtts_model"]["active"])
         etts_model = None
         default_language = "de"
         
     else:
-        etts_model = get_instance(params["etts_model"])
+        etts_model = get_instance(params["etts_model"]["active"])
         gtts_model = None
         default_language = "en"
     
     return stt_model, ttt_model, tti_model, gtts_model, etts_model, default_language
+
+
+
+def is_anthropic_model(model_id):
+    model_id = model_id.lower()
+    return model_id.startswith("claude")
+
+
+def is_openai_model(model_id):
+    model_id = model_id.lower()
+    return (
+        model_id.startswith("gpt")
+        or model_id.startswith("o1")
+        or model_id.startswith("o3")
+        or model_id.startswith("o4")
+    )
+
+
+def apply_api_model_selection(params, model_id=None):
+    """
+    Selects the API backend automatically from a model id.
+
+    If params["api_models"] exists, model_id is interpreted as an API model id,
+    e.g. gpt-4o-mini or claude-3-5-sonnet-20241022.
+    """
+
+    api_models = params.get("api_models")
+
+    if not api_models:
+        return params
+
+    if model_id is None:
+        model_id = params.get("active_api_model")
+
+    if model_id is None:
+        model_id = next(iter(api_models.keys()))
+
+    if model_id not in api_models:
+        raise ValueError(f"Unknown API model id: {model_id}")
+
+    params["active_api_model"] = model_id
+
+    if is_anthropic_model(model_id):
+        params["ttt_model"]["active"] = "ClaudeAPI"
+        params["anthropic_model"] = model_id
+
+    elif is_openai_model(model_id):
+        params["ttt_model"]["active"] = "OpenAIAPI"
+        params["openai_model"] = model_id
+
+    else:
+        raise ValueError(
+            f"Could not determine API provider for model id: {model_id}. "
+            "Expected OpenAI model id or Claude model id."
+        )
+
+    return params
 
 
 @sio.on("connect")
@@ -126,162 +190,274 @@ def reset():
     return "Reset"
 
 def generateAnswer(voice_request):
-    """Takes audio bytes as input and processes it follows: 
-        1- Transcribes it using the Speech-To-Text model.
-        2- Query the Text-to-Text model on the transcribed text from 1.
-        3- Generates speech on each generated chunck using the Text-to-Speech model.
-        4- Emits the generated speech to the client.
-        5- When generating is finished, a 'request' emit to notify the client to record a new voice request.
-    Args:
-        voice_request (bytes): Recorded voice request from client.
-    """
-    global params, stt_model, ttt_model, etts_model, gtts_model,tti_model
-    first_response = True
+    global params, stt_model, ttt_model, etts_model, gtts_model, tti_model
+
     logs = {}
-    start_time = time.time()
-    current_time = start_time
-    # print("########### generating ###########")
-    # transcription = stt_model.run(voice_request)
-    transcription, transcription_success = stt_model.run(voice_request, language=params["conversation_language"])
-
-    if transcription_success:
-        sio.emit("chat", {"message": transcription.strip(), "sender": "You"})
-    else:
-        sio.emit("chat", {"message": "[...]", "sender": "You"})
-
-    transcription_time = time.time() - current_time
-    print(transcription)
-    # print(voice_query)
-    entry = ""
-    response = []
     ttt_times = []
     tts_times = []
+
+    first_response = True
+    audio_id = 0
+
+    start_time = time.time()
+    current_time = start_time
+
+    # ----------------------------
+    # STT
+    # ----------------------------
+    transcription, transcription_success = stt_model.run(
+        voice_request,
+        language=params["conversation_language"]
+    )
+
+    transcription_time = time.time() - current_time
     current_time = time.time()
-    # image_generation_keywords_nouns = set(params["image_generation_keywords_nouns"])
-    # image_generation_keywords_verbs = set(params["image_generation_keywords_verbs"])
-    # prompt_words = set(transcription.split())
 
-    
-    # if image_generation_keywords_nouns & prompt_words and image_generation_keywords_verbs & prompt_words:
-    plot_request = False
-    for noun in params["image_generation_keywords_nouns"]:
-        if noun in transcription:
-            for verb in params["image_generation_keywords_verbs"]:
-                if verb in transcription:
-                    plot_request = True
-                    break
-            if plot_request:
-                break
+    user_message = transcription.strip() if transcription_success else "[...]"
+    sio.emit("chat", {
+        "message": user_message,
+        "sender": "You"
+    })
 
+    # ----------------------------
+    # Helpers
+    # ----------------------------
     def determine_language(text):
         if params["conversation_language"] == "multi":
-            lang = detect(text)
-            if lang not in ["de", "en"]:
-                lang = default_language
-        else:
-            lang = params["conversation_language"]
-        return lang
+            try:
+                lang = detect(text)
+            except Exception:
+                lang = params.get("default_language", "en")
+
+            return lang if lang in ["de", "en"] else params.get("default_language", "en")
+
+        return params["conversation_language"]
+
     def generate_voice_answer(text):
         lang = determine_language(text)
 
         if lang == "de":
-            voice_answer = gtts_model.run(text)
-        else:
-            voice_answer = etts_model.run(text, language='en')
-        return voice_answer
+            return gtts_model.run(text)
 
-    def post_process_text(text):
+        return etts_model.run(text, language="en")
+
+    def post_process_tts_text(text):
         for abbr, full in ABBREVIATION_MAP.items():
             text = text.replace(abbr, full)
         return text
 
-    if plot_request:
-        print("Plotting Request")
-        image_np = np.array(tti_model.run(transcription.strip()+ " " + params["image_generation_system_prompt"]))
-        image_bytes = image_np.tobytes()
+    def post_process_chat_text(text):
+        return text.replace("*", "").strip()
+    
+    def split_and_merge_chat_sentences(chat_text):
+        raw_sentences = re.split(r'(?<=[.!?])\s+', chat_text.strip())
+        raw_sentences = [s.strip() for s in raw_sentences if s.strip()]
 
-        lang = determine_language(transcription)
-        
-        if lang == "de":
-            # print("#####\n",lang,"\n#####\n")
-            sio.emit("chat", data={"message": "Hast du weitere Anfragen?", "sender": "AI"})
-            voice_answer = gtts_model.run("Hast du weitere Anfragen?")
-        else:
-            # print("#####\n",lang,"\n#####\n")
-            sio.emit("chat", data={"message": "Do you have another request?", "sender": "AI"})
-            # voice_answer = etts_model.run("Do you have another request?")
-            voice_answer = etts_model.run(text="Do you have another request?", language='en')
-        sio.emit("image", data={"image_bytes": image_bytes})
-        b_answer = voice_answer.tobytes()
-        data = {"voice_answer": b_answer}
-        sio.emit("voice reply", data)
+        abbreviation_keys = sorted(
+            ABBREVIATION_MAP.keys(),
+            key=len,
+            reverse=True
+        )
+
+        # 1. Re-merge false sentence splits after abbreviations, e.g. "Art."
+        abbreviation_safe_sentences = []
+
+        for part in raw_sentences:
+            if (
+                abbreviation_safe_sentences
+                and any(abbreviation_safe_sentences[-1].endswith(abbr.strip()) for abbr in abbreviation_keys)
+            ):
+                abbreviation_safe_sentences[-1] += " " + part
+            else:
+                abbreviation_safe_sentences.append(part)
+
+        # 2. Merge very short sentences with the following one
+        merged = []
+        i = 0
+
+        while i < len(abbreviation_safe_sentences):
+            current = abbreviation_safe_sentences[i]
+
+            if len(current) < 20 and i + 1 < len(abbreviation_safe_sentences):
+                merged.append(current + " " + abbreviation_safe_sentences[i + 1])
+                i += 2
+            else:
+                merged.append(current)
+                i += 1
+
+        return merged
+    
+    def emit_sentence(chat_sentence):
+        nonlocal first_response, audio_id, current_time
+
+        chat_sentence = chat_sentence.strip()
+        if not chat_sentence:
+            return
+
+        tts_sentence = post_process_tts_text(chat_sentence)
+
+        tts_start = time.time()
+        voice_answer = generate_voice_answer(tts_sentence)
+        tts_times.append(time.time() - tts_start)
+
+        sio.emit("voice reply", {
+            "id": audio_id,
+            "voice_answer": voice_answer.tobytes()
+        })
+
+        # Chat erst NACH der Audio-Message senden
+        sio.emit("chat", {
+            "message": chat_sentence,
+            "sender": "AI"
+        })
+
+        audio_id += 1
+
+        if first_response:
+            logs["first_response"] = sum(ttt_times) + sum(tts_times)
+            first_response = False
+
+        current_time = time.time()
+
+    def emit_entry(entry_text):
+        entry_text = entry_text.strip()
+        if not entry_text:
+            return
+
+        chat_text = post_process_chat_text(entry_text)
+        if not chat_text:
+            return
+
+        chat_sentences = split_and_merge_chat_sentences(chat_text)
+
+        for chat_sentence in chat_sentences:
+            emit_sentence(chat_sentence)
+
+    # ----------------------------
+    # Image detection
+    # ----------------------------
+    plot_request = (
+        transcription_success
+        and any(noun in transcription for noun in params["image_generation_keywords_nouns"])
+        and any(verb in transcription for verb in params["image_generation_keywords_verbs"])
+    )
+
+    # ----------------------------
+    # IMAGE MODE
+    # ----------------------------
+    if plot_request:
+        image_np = np.array(
+            tti_model.run(
+                transcription.strip()
+                + " "
+                + params["image_generation_system_prompt"]
+            )
+        )
+
+        sio.emit("image", {
+            "image_bytes": image_np.tobytes()
+        })
+
+        answer_text = (
+            "Hast du weitere Anfragen?"
+            if determine_language(transcription) == "de"
+            else "Do you have another request?"
+        )
+
+        emit_sentence(answer_text)
+
+    # ----------------------------
+    # TEXT MODE
+    # ----------------------------
     else:
-        if transcription_success:
-            generator = ttt_model.run(transcription.strip())
-        else:
-            generator = [transcription, "END"]
+        generator = (
+            ttt_model.run(transcription.strip())
+            if transcription_success
+            else [params["not_able_to_respond_message"], "END"]
+        )
+
+        entry = ""
 
         for out in generator:
-            ttt_times.append(time.time()-current_time)
-            if len(out)<1 or out.isspace():
+            ttt_times.append(time.time() - current_time)
+            current_time = time.time()
+
+            if not out or out.isspace():
                 continue
+
             if out == "END":
-                if len(entry)<1:
+                if not entry.strip():
                     entry = params["not_able_to_respond_message"]
-                    sio.emit("chat", data={"message": entry, "sender": "AI"})
-                    print(entry)
-                    continue
-                entry = post_process_text(entry)
-                print("\n##############\n")
-                print(entry)
-                print("\n##############\n")
-                current_time = time.time()
 
-                sio.emit("chat", data={"message": entry, "sender": "AI"})
-                # voice_answer = tts_model.run(entry)
+                emit_entry(entry)
+                entry = ""
+                break
 
-                voice_answer = generate_voice_answer(entry)
+            next_entry = entry + out + " "
 
-                tts_times.append(time.time()-current_time)
-                if first_response:
-                    logs["first_response"] = sum(ttt_times) + sum(tts_times)
-                    first_response = False
-                b_answer = voice_answer.tobytes()
-                response.append(entry)
-                data = {"voice_answer": b_answer}
-                sio.emit("voice reply", data)
+            if len(next_entry) >= entry_length:
+                emit_entry(entry)
+                entry = out + " "
             else:
-                if (len(entry) + len(out) + 1) >= entry_length:
-                    entry = post_process_text(entry)
+                entry = next_entry
 
-                    print("\n##############\n")
-                    print(entry)
-                    print("\n##############\n")
-                    current_time = time.time()
-                    sio.emit("chat", data={'message': entry, 'sender': 'AI'})
+        # Safety fallback if generator ends without explicit END
+        if entry.strip():
+            emit_entry(entry)
 
-                    voice_answer = generate_voice_answer(entry)
-                    tts_times.append(time.time()-current_time)
-                    
-                    if first_response:
-                        logs["first_response"] = sum(ttt_times) + sum(tts_times)
-                        first_response = False
-                        
-                    b_answer = voice_answer.tobytes()
-                    response.append(entry)
-                    entry = out + " "
-                    data = {"voice_answer": b_answer}
-                    sio.emit("voice reply", data)
-                else:
-                    entry += out + " "
-            current_time = time.time()    
-        
+    # ----------------------------
+    # LOGS
+    # ----------------------------
+    if "first_response" not in logs:
+        logs["first_response"] = None
+
     logs["stt_time"] = transcription_time
     logs["ttt_times"] = ttt_times
     logs["tts_times"] = tts_times
     logs["total_time"] = time.time() - start_time
-    logs_bytes = json.dumps(logs, indent=2).encode('utf-8')
-    sio.emit("request", data=logs_bytes)
+
+    sio.emit("request", json.dumps(logs).encode("utf-8"))
+
+@app.route("/api_models", methods=["GET"])
+def api_models():
+    global params
+
+    return {
+        "models": params.get("api_models", {}),
+        "active": params.get("active_api_model")
+    }
+
+@app.route("/switch_api_model", methods=["POST"])
+def switch_api_model():
+    global params, ttt_model
+
+    data = request.get_json()
+    model_id = data["model_id"]
+
+    apply_api_model_selection(params, model_id)
+
+    ttt_model = get_instance(params["ttt_model"]["active"], params)
+    ttt_model.clear_history()
+
+    print(
+        f"API model switched to {model_id} "
+        f"via {params['ttt_model']['active']}"
+    )
+
+    sio.emit("chat", {
+        "message": f"[Modell zu {params['api_models'][model_id]} gewechselt]",
+        "sender": "System"
+    })
+
+    return {
+        "status": "ok",
+        "active": model_id,
+        "pretty_name": params["api_models"][model_id],
+        "backend": params["ttt_model"]["active"]
+    }
+
+
+
 
 @app.route("/request", methods=["POST", "GET"])
 def receive():
@@ -296,7 +472,6 @@ def receive():
     t = threading.Thread(target=generateAnswer, daemon=True, args=[voice_query])
     t.start()
     return {"response": received_time}
-
 
 
 @app.route("/request_welcome_message", methods=["POST", "GET"])
@@ -317,6 +492,31 @@ def generateWM():
     else:
         gtts_model.run_to_file(query, filepath=output_file)
     return {"response": received_time}
+    
+@app.route("/switch_model", methods=["POST"])
+def switch_model():
+    global params, stt_model, ttt_model, tti_model, gtts_model, etts_model
+
+    data = request.get_json()
+    model_type = data["model_type"]
+    model_name = data["model_name"]
+
+    params[model_type]["active"] = model_name
+
+    if model_type == "stt_model":
+        stt_model = get_instance(model_name)
+    elif model_type == "ttt_model":
+        ttt_model = get_instance(model_name, params)
+    elif model_type == "tti_model":
+        tti_model = get_instance(model_name)
+    elif model_type == "gtts_model":
+        gtts_model = get_instance(model_name)
+    elif model_type == "etts_model":
+        etts_model = get_instance(model_name)
+
+    print(f"{model_type} switched to {model_name}")
+
+    return {"status": "ok"}
 
 if __name__ == '__main__':
     default_json_path = main_path + '/params.json'

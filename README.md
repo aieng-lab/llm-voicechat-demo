@@ -18,8 +18,8 @@ git clone https://github.com/aieng-lab/llm-voicechat-demo.git
    
    - Using Python virtualenv:
    ```
-   python3.9.18 -m venv voicebot
-   source voicebot/bin/activate
+   python3.9.18 -m venv voicebot2
+   source voicebot2/bin/activate
    ```
    - Or you can build a Docker instance:
      ```
@@ -49,10 +49,12 @@ pip install -r requirements.txt
    - If you want to pass a predefined setting, you can directly pass the path to .json parameters file. Ex:
    ```
     python FlaskSocketIO_backend.py modes/vi_de_no_clicks.json
+    python FlaskSocketIO_backend.py modes/girls_day_demo.json
    ```
     - In the second terminal run:
    ```
-    python FlaskSocketIO_GUI.py modes/vi_de_no_clicks.json
+    python FlaskSocketIO_GUI.py modes/api_de_two_clicks.json
+    python FlaskSocketIO_GUI.py modes/girls_day_demo.json
    ```
 ## How to use:
 

@@ -15,3 +15,5 @@ flask-socketio==5.3.6
 diffusers==0.29.1
 langdetect==1.0.9
 openai==1.43.0
+spacy==3.7.5
+thinc==8.2.5

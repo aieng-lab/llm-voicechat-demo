@@ -12,12 +12,14 @@ from PyQt5 import QtCore, QtWidgets, QtGui
 import sys
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+import json
+import requests
 
 class ImageWindow(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
         super(ImageWindow, self).__init__(parent)
         self.data = None
-        self.initUI()
+        self.initUI()       
 
     def initUI(self):
         self.setWindowTitle('Image Window')
@@ -159,8 +161,76 @@ class HoldButton(QtWidgets.QPushButton):
         
 class Ui_MainWindow(object):
     def __init__(self, params) -> None:
-        self.params=params
-    
+        self.params = params
+        self.modelCombos = {}
+
+    def addModelSelector(self, key, label):
+        if key not in self.params:
+            return
+
+        if not isinstance(self.params[key], dict):
+            return
+
+        if "available" not in self.params[key] or "active" not in self.params[key]:
+            return
+
+        row_widget = QtWidgets.QWidget()
+        row_layout = QtWidgets.QHBoxLayout(row_widget)
+        row_layout.setContentsMargins(0, 6, 0, 6)
+        row_layout.setSpacing(12)
+
+        label_widget = QtWidgets.QLabel(label)
+        label_widget.setStyleSheet("color: white;")
+        label_widget.setMinimumWidth(140)
+
+        combo = QtWidgets.QComboBox()
+        combo.addItems(self.params[key]["available"])
+        combo.blockSignals(True)
+        combo.setCurrentText(self.params[key]["active"])
+        combo.blockSignals(False)
+        combo.setMinimumHeight(32)
+
+        combo.setStyleSheet("""
+            QComboBox {
+                background-color: white;
+                color: black;
+                padding: 4px 8px;
+            }
+        """)
+
+        row_layout.addWidget(label_widget)
+        row_layout.addWidget(combo, 1)
+
+        row = len(self.modelCombos)
+        self.gridLayout_models.addWidget(row_widget, row, 0)
+
+        self.modelCombos[key] = combo
+
+        combo.currentTextChanged.connect(
+            lambda v, k=key: self.onModelChange(k, v)
+        )
+
+    def onModelChange(self, model_type, value):
+        try:
+            url = "http://localhost:5000/switch_model"
+
+            response = requests.post(url, json={
+                "model_type": model_type,
+                "model_name": value
+            })
+
+            response = requests.post(url, json={
+            "model_type": model_type,
+            "model_name": value
+            })
+
+            print("Status:", response.status_code)
+            print("Response:", response.text)
+
+
+        except Exception as e:
+            print(f"Error switching {model_type}: {e}")
+
     def setupUi(self, MainWindow, window_size):
         MainWindow.setObjectName("MainWindow")
         self.window_size = (window_size.width(), window_size.height())
@@ -221,6 +291,15 @@ class Ui_MainWindow(object):
         self.gridLayout_4.setObjectName("gridLayout_4")
         
         self.gridLayout_5 = QtWidgets.QGridLayout()
+        self.gridLayout_models = QtWidgets.QGridLayout()
+        self.verticalLayout1.addLayout(self.gridLayout_models)
+
+        self.addModelSelector("stt_model", "STT Model")
+        self.addModelSelector("ttt_model", "LLM Model")
+        self.addModelSelector("gtts_model", "German TTS")
+        self.addModelSelector("etts_model", "English TTS")
+        self.addModelSelector("tti_model", "Image Model")
+
         self.gridLayout_5.setObjectName("gridLayout_5")
         
         self.startButton = QtWidgets.QPushButton(self.groupBox1)
@@ -296,7 +375,11 @@ class Ui_MainWindow(object):
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     MainWindow = QtWidgets.QMainWindow()
-    ui = Ui_MainWindow()
-    ui.setupUi(MainWindow)
+    with open("params.json", "r", encoding="utf-8") as f:
+        params = json.load(f)
+    ui = Ui_MainWindow(params)
+    screen = app.primaryScreen()
+    window_size = screen.availableGeometry()
+    ui.setupUi(MainWindow, window_size)
     MainWindow.show()
     sys.exit(app.exec_())

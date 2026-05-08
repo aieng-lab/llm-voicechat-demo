@@ -1,3 +1,7 @@
+import os
+os.environ["TORCHDYNAMO_DISABLE"] = "1"
+os.environ["TORCHINDUCTOR_DISABLE"] = "1"
+os.environ["TORCH_COMPILE_DISABLE"] = "1"
 import librosa
 import torch
 import speech_recognition as sr
@@ -7,13 +11,16 @@ from transformers import AutoProcessor, AutoModelForSpeechSeq2Seq
 from transformers import WhisperProcessor
 import argparse
 from fastchat.conversation import conv_templates, SeparatorStyle, register_conv_template, Conversation
-
+from voxcpm import VoxCPM
+from anthropic import Anthropic
+import soundfile as sf
 # from fastchat.serve.serve_chatglm import ChatGLMServeAPI
 
 import numpy as np
 from TTS.api import TTS
 from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
-from openai import OpenAI
+from openai import OpenAI, InternalServerError
+import time
 
 
 
@@ -259,6 +266,7 @@ class WhisperLargeV2(WhisperModel):
         "Untertitelung im Auftrag des ZDF, 2021",
         "Danke für's Zuschauen!",
         "Bis zum nächsten Mal.",
+        "Untertitel der Amara.org-Community",
     ]
 
     def __init__(self, device=None):
@@ -333,14 +341,14 @@ class WhisperLargeV2(WhisperModel):
 
             # Transcription using pipeline
             if language == "multi":
-                text = self.p(audio_array, max_new_tokens=500, generate_kwargs={"task": "transcribe"})["text"]
+                text = self.p(audio_array, max_new_tokens=128, generate_kwargs={"task": "transcribe"})["text"]
             elif language == "de":
-                text = self.p(audio_array, max_new_tokens=500, generate_kwargs={"language": "german"})["text"]
+                text = self.p(audio_array, max_new_tokens=128, generate_kwargs={"language": "german"})["text"]
             else:
-                text = self.p(audio_array, max_new_tokens=500, generate_kwargs={"language": "english"})["text"]
+                text = self.p(audio_array, max_new_tokens=128, generate_kwargs={"language": "english"})["text"]
 
             # Filter out silence phrases
-            if text.strip() not in self.SILENCE_PHRASES:
+            if text.strip(". ") not in self.SILENCE_PHRASES:
                 return text, True
 
         except Exception as e:
@@ -390,17 +398,17 @@ class FastChatModel(TTTStrategy):
                         debug=False,)
         self.args = argparse.Namespace(**self.args)
         self.model, self.tokenizer = self.load_model(self.args.model_name, self.args.device, self.args.num_gpus, self.args.quantization)
-        
-        register_conv_template(
-            Conversation(
-                name=self.args.conv_template,
-                system_message= self.params["text_generation_system_prompt"],
-                roles=("USER", "ASSISTANT"),
-                sep_style=SeparatorStyle.ADD_COLON_TWO,
-                sep=" ",
-                sep2="</s>",
+        if "custom_vicuna" not in conv_templates:
+            register_conv_template(
+                Conversation(
+                    name=self.args.conv_template,
+                    system_message= self.params["text_generation_system_prompt"],
+                    roles=("USER", "ASSISTANT"),
+                    sep_style=SeparatorStyle.ADD_COLON_TWO,
+                    sep=" ",
+                    sep2="</s>",
+                )
             )
-        )
         
         self.conv = conv_templates[self.args.conv_template].copy()
         self.welcome_message = self.params["welcome_message"]
@@ -429,7 +437,14 @@ class FastChatModel(TTTStrategy):
             if quantization:
                 if num_gpus != "auto" and int(num_gpus) != 1:
                     print("8-bit weights are not supported on multiple GPUs. Revert to use one GPU.")
-                kwargs.update({"load_in_8bit": True, "device_map": "auto"})
+                bnb_config = BitsAndBytesConfig(load_in_8bit=True)
+                model = AutoModelForCausalLM.from_pretrained(
+                    model_name,
+                    device_map="auto",
+                    quantization_config=bnb_config,
+                    torch_dtype=torch.float16
+                )    
+                #kwargs.update({"load_in_8bit": True, "device_map": "auto"})
                 # kwargs.update({"load_in_4bit": True, "device_map": "auto"})
             else:
                 if num_gpus == "auto":
@@ -478,22 +493,23 @@ class FastChatModel(TTTStrategy):
         max_new_tokens = int(params.get("max_new_tokens", 256))
         stop_str = params.get("stop", None)
 
-        input_ids = tokenizer(prompt).input_ids
-        output_ids = list(input_ids)
+        input_ids = tokenizer(prompt, return_tensors="pt").input_ids
+        output_ids = input_ids[0].tolist()
         # The input is then preprocessed to ensure it is within a specific length
         max_src_len = context_len - max_new_tokens - 8
         input_ids = input_ids[-max_src_len:]
         outputs = []
         for i in range(max_new_tokens):
             if i == 0:
+                input_tensor = input_tensor = input_ids.to(model.device)
                 out = model(
-                    torch.as_tensor([input_ids], device=device), use_cache=True)
+                    input_tensor , use_cache=True)
                 logits = out.logits
                 past_key_values = out.past_key_values
             else:
-                attention_mask = torch.ones(
-                    1, past_key_values[0][0].shape[-2] + 1, device=device)
-                out = model(input_ids=torch.as_tensor([[token]], device=device),
+                seq_len = input_ids.shape[-1] + i
+                attention_mask = torch.ones(1, seq_len, device=model.device)
+                out = model(input_ids=torch.as_tensor([[token]]).to(model.device),
                             use_cache=True,
                             attention_mask=attention_mask,
                             past_key_values=past_key_values)
@@ -593,6 +609,7 @@ class FastChatModel(TTTStrategy):
     def clear_history(self):
         """Clear chat's history.
         """
+        print("Clear History")
         self.conv.messages.clear()
         self.conv = conv_templates[self.args.conv_template].copy()
         self.conv.append_message(self.conv.roles[1], self.welcome_message)
@@ -798,23 +815,24 @@ class OpenAIAPI(TTTStrategy):
                 output += chunk.choices[0].delta.content
                 assistant_response+= chunk.choices[0].delta.content
                 
-                if "." in output:
-                    output = output.split(".")
+                if ". " in output:
+                    output = output.split(". ")
                     leftover = output[-1]
-                    output = ".".join(output[:-1])+ "."
+                    output = ". ".join(output[:-1])+ "."
                     
                     yield output                
                     output = leftover
         if len(output)>1:
             yield output
-        yield "END"                                
         
         # Add the answer to a new entry at the end of the conversation with role 'assistant'.
-        self.conv.append({"role": "assistant", "content": assistant_response})
+        self.conv.append({"role": "assistant", "content": assistant_response})        
+        yield "END"                                
     
     def clear_history(self):
         """Clear chat's history.
         """
+        print("Clear OpenAI History")
         self.conv = [
             {"role": "system", "content": self.params["text_generation_system_prompt"]},
             {"role": "assistant", "content": self.params["welcome_message"]}
@@ -983,3 +1001,172 @@ class StableDiffusion(TTIStrategy):
         
     def run(self, text: str):
         return self.pipe(text).images[0]
+    
+
+class ClaudeAPI(TTTStrategy):
+    def __init__(self, params) -> None:
+        super().__init__()
+        self.params = params
+
+        api_key = self.params.get("anthropic_api_key")
+        if not api_key:
+            raise ValueError("Missing anthropic_api_key")
+
+        self.client = Anthropic(api_key=api_key)
+
+        self.model_name = self.params.get(
+            "anthropic_model",
+            "claude-sonnet-4-6"
+        )
+        print(f"Using {self.model_name}")
+
+        self.system_prompt = self.params.get(
+            "text_generation_system_prompt",
+            ""
+        )
+
+        self.max_tokens = self.params.get("anthropic_max_tokens", 1024)
+        self.max_history = self.params.get("max_history", 20)
+
+        self.messages = []
+        self.clear_history()
+
+    def _to_anthropic_message(self, role, text):
+        return {
+            "role": role,
+            "content": [
+                {
+                    "type": "text",
+                    "text": text
+                }
+            ]
+        }
+
+    def run(self, query: str):
+        self.messages.append(
+            self._to_anthropic_message("user", query)
+        )
+
+        leftover = ""
+        assistant_response = ""
+
+        try:
+            with self.client.messages.stream(
+                model=self.model_name,
+                max_tokens=self.max_tokens,
+                system=self.system_prompt,
+                messages=self.messages
+            ) as stream:
+
+                for event in stream:
+                    if event.type == "content_block_delta":
+                        text = getattr(event.delta, "text", None)
+
+                        if not text:
+                            continue
+
+                        leftover += text
+                        assistant_response += text
+
+                        if ". " in leftover:
+                            parts = leftover.split(". ")
+                            ready = ". ".join(parts[:-1]) + "."
+                            leftover = parts[-1]
+
+                            if ready.strip():
+                                yield ready.strip()
+
+        except Exception as e:
+            if self.messages and self.messages[-1]["role"] == "user":
+                self.messages.pop()
+
+            yield f"Error: {str(e)}"
+            yield "END"
+            return
+
+        if leftover.strip():
+            yield leftover.strip()
+
+        if not assistant_response.strip():
+            assistant_response = self.params.get(
+                "not_able_to_respond_message",
+                "Entschuldigung, ich konnte keine Antwort generieren."
+            )
+            yield assistant_response
+
+        # IMPORTANT:
+        # Store assistant response BEFORE yielding END.
+        # Otherwise backend breaks the generator and this code is never reached.
+        self.messages.append(
+            self._to_anthropic_message("assistant", assistant_response.strip())
+        )
+        print("Claude history roles:", [m["role"] for m in self.messages])
+
+        self._trim_history()
+        print("Claude history roles:", [m["role"] for m in self.messages])
+
+
+        yield "END"
+
+    def _trim_history(self):
+        if len(self.messages) <= self.max_history:
+            return
+
+        # Keep the last messages, but avoid starting with an assistant message.
+        self.messages = self.messages[-self.max_history:]
+
+        while self.messages and self.messages[0]["role"] == "assistant":
+            self.messages.pop(0)
+
+    def clear_history(self):
+        self.messages = []
+        print("Cleared History")
+
+        welcome_message = self.params.get("welcome_message", "")
+        if welcome_message:
+            self.messages.append(
+                self._to_anthropic_message("assistant", welcome_message)
+            )
+
+
+class VoxCPM_TTS(TTSStrategy):
+    def __init__(self, reference_wav="examples_example.wav"):
+        super().__init__()
+
+        self.model = VoxCPM.from_pretrained(
+            "openbmb/VoxCPM2",
+            load_denoiser=False,
+        )
+
+        self.sample_rate = self.model.tts_model.sample_rate
+        self.reference_wav = reference_wav 
+
+    def run(self, text: str):
+        wav = self.model.generate(
+            text=text,
+            reference_wav_path = self.reference_wav ,
+            cfg_value=2.0,
+            inference_timesteps=10,
+        )
+
+        if wav is None:
+            return np.array([], dtype=np.float32), self.sample_rate
+
+        wav = np.asarray(wav, dtype=np.float32)
+
+        return wav
+
+    def run_to_file(self, text: str, filepath="output.wav"):
+
+        wav = self.run(text)
+
+        if wav is None or len(wav) == 0:
+            return ""
+
+        wav = np.asarray(wav, dtype=np.float32)
+
+        sr = self.sample_rate  
+
+        sf.write(filepath, wav, sr)
+        return filepath
+      
